@@ -1,7 +1,31 @@
+import logging
+from logging.config import dictConfig
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, Menu
 import subprocess
+import json
+
+# Set up Global Variables
+OUTPUT_PATH: str
+LOGGER_NAME: str
+LOG_FILE: str
+
+try:
+    with open('conf.json', 'r') as j:
+        data = json.load(j)
+    OUTPUT_PATH = data['output_dir']
+    dictConfig(data['logging_config'])
+    LOGGER_NAME = data['logger_name']
+    LOG_FILE = os.path.join(os.path.dirname(__file__), data['log_file'])
+except FileNotFoundError or FileExistsError as err:
+    print(f"Error: {err}")
+    exit(1)
+
+
+# Set up logging
+logger = logging.getLogger(LOGGER_NAME)
+
 
 # Function to get video duration using ffprobe
 def get_video_duration():
@@ -21,9 +45,11 @@ def get_video_duration():
         video_duration_label.config(text=f"Video Duration: {int(duration)} seconds")
         start_slider.config(to=int(duration))
         end_slider.config(to=int(duration))
+        logger.info(f"Video: {input_file} duration: {int(duration)} seconds")
         return duration
     except Exception as e:
         messagebox.showerror("Error", f"Failed to retrieve video duration: {str(e)}")
+        logger.error(f"Failed to retrieve video duration: {str(e)}")
         return 0
 
 # Function to execute ffmpeg trimming command
@@ -34,9 +60,11 @@ def process_video():
     start_trim = start_slider.get() if trim_enabled_var.get() else 0
     end_trim = end_slider.get() if trim_enabled_var.get() else 0
     output_format = format_var.get()
+    logger.info(f"Processing video: {input_file} to {output_folder} as {output_filename}.{output_format}")
 
     if not input_file or not output_folder or not output_filename:
         messagebox.showerror("Error", "Please select both input file, output folder, and provide a name.")
+        logger.error("Please select both input file, output folder, and provide a name.")
         return
 
     # Ensure output folders exist
@@ -48,6 +76,7 @@ def process_video():
     # Construct output file path based on format
     if output_format == "GIF":
         output_path = os.path.join(gif_folder, f"{output_filename}.gif")
+        logger.info(f"Output path: {output_path}")
         try:
             ffmpeg_cmd = [
                 "ffmpeg",
@@ -58,8 +87,10 @@ def process_video():
                 "-y", output_path
             ]
             subprocess.run(ffmpeg_cmd, check=True)
+            logger.info(f"GIF saved as {output_filename}.gif")
             messagebox.showinfo("Success", f"GIF saved as {output_filename}.gif")
         except Exception as e:
+            logger.error(f"Failed to create GIF: {str(e)}")
             messagebox.showerror("Error", f"Failed to create GIF: {str(e)}")
     else:
         output_path = os.path.join(mp4_folder, f"{output_filename}.mp4")
@@ -72,8 +103,10 @@ def process_video():
                 "-y", output_path
             ]
             subprocess.run(ffmpeg_cmd, check=True)
+            logger.info(f"Video saved as {output_filename}.mp4")
             messagebox.showinfo("Success", f"Video saved as {output_filename}.mp4")
         except Exception as e:
+            logger.error(f"Failed to save MP4: {str(e)}")
             messagebox.showerror("Error", f"Failed to save MP4: {str(e)}")
 
 # Function to open file dialog for selecting input file
