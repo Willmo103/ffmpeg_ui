@@ -39,35 +39,34 @@ def save_config(output_path):
     except Exception as e:
         logger.error(f"Failed to update configuration: {str(e)}")
 
-# Function to get video duration using ffprobe
-def get_video_duration():
+# Function to get video duration and dimensions using ffprobe
+def get_video_info():
     input_file = input_file_var.get()
     if not input_file:
         return
     try:
         ffprobe_cmd = [
             "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,duration",
+            "-of", "csv=s=x:p=0",
             input_file,
         ]
         result = subprocess.run(
             ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        duration = float(result.stdout.decode("utf-8").strip())
+        width, height, duration = result.stdout.decode("utf-8").strip().split("x")
+        duration = float(duration)
         video_duration_label.config(text=f"Video Duration: {int(duration)} seconds")
         start_slider.config(to=int(duration))
         end_slider.config(to=int(duration))
-        logger.info(f"Video: {input_file} duration: {int(duration)} seconds")
-        return duration
+        logger.info(f"Video: {input_file}, Dimensions: {width}x{height}, Duration: {int(duration)} seconds")
+        return int(width), int(height), duration
     except Exception as e:
-        messagebox.showerror("Error", f"Failed to retrieve video duration: {str(e)}")
-        logger.error(f"Failed to retrieve video duration: {str(e)}")
-        return 0
+        messagebox.showerror("Error", f"Failed to retrieve video info: {str(e)}")
+        logger.error(f"Failed to retrieve video info: {str(e)}")
+        return 0, 0, 0
 
 # Function to execute ffmpeg trimming command
 def process_video():
@@ -77,6 +76,10 @@ def process_video():
     start_trim = start_slider.get() if trim_enabled_var.get() else 0
     end_trim = end_slider.get() if trim_enabled_var.get() else 0
     output_format = format_var.get()
+
+    # Get video dimensions for GIF creation
+    width, height, video_duration = get_video_info()
+
     logger.info(
         f"Processing video: {input_file} to {output_folder} as {output_filename}.{output_format}"
     )
@@ -96,19 +99,22 @@ def process_video():
     os.makedirs(mp4_folder, exist_ok=True)
     os.makedirs(gif_folder, exist_ok=True)
 
-    cmd_array = [
-        "ffmpeg",
-        "-i",
-        input_file,
-    ]
+    # Construct ffmpeg command array
+    cmd_array = ["ffmpeg", "-i", input_file]
+
     if trim_enabled_var.get():
         cmd_array.extend(["-ss", str(start_trim), "-to", str(video_duration - end_trim)])
+
+    # MP4 conversion logic
     if output_format == "MP4":
         cmd_array.extend(["-c:v", "libx264", "-c:a", "aac", "-strict", "experimental"])
         output_path = os.path.join(mp4_folder, f"{output_filename}.mp4")
+
+    # GIF conversion logic
     if output_format == "GIF":
-        cmd_array.extend(["-vf", "fps=10,scale=320:-1:flags=lanczos"])
+        cmd_array.extend([f"-vf", f"fps=10,scale={width}:{height}:flags=lanczos"])
         output_path = os.path.join(gif_folder, f"{output_filename}.gif")
+
     try:
         cmd_array.append(output_path)
         logger.info(f"Executing command: {' '.join(cmd_array)}")
@@ -116,15 +122,16 @@ def process_video():
         logger.info(f"Saved file to: {output_path}")
         messagebox.showinfo("Success", f"Saved file to: {output_path}")
     except Exception as e:
-        logger.error(f"Failed to save MP4: {str(e)}")
-        messagebox.showerror("Error", f"Failed to save MP4: {str(e)}")
+        logger.error(f"Failed to save {output_format}: {str(e)}")
+        messagebox.showerror("Error", f"Failed to save {output_format}: {str(e)}")
+
 
 # Function to open file dialog for selecting input file
 def select_input_file():
     file_path = filedialog.askopenfilename(filetypes=[("MP4 files", "*.mp4")])
     if file_path:
         input_file_var.set(file_path)
-        get_video_duration()
+        get_video_info()
 
 # Function to open file dialog for selecting output folder
 def select_output_folder():
