@@ -11,6 +11,7 @@ OUTPUT_PATH: str
 LOGGER_NAME: str
 LOG_FILE: str
 
+# Load configuration
 try:
     with open("conf.json", "r") as j:
         data = json.load(j)
@@ -18,14 +19,25 @@ try:
     dictConfig(data["logging_config"])
     LOGGER_NAME = data["logger_name"]
     LOG_FILE = os.path.join(os.path.dirname(__file__), data["log_file"])
-except FileNotFoundError or FileExistsError as err:
+except (FileNotFoundError, FileExistsError) as err:
     print(f"Error: {err}")
     exit(1)
-
 
 # Set up logging
 logger = logging.getLogger(LOGGER_NAME)
 
+# Function to save updated configuration to conf.json
+def save_config(output_path):
+    try:
+        # Update configuration with the new output path
+        data["output_path"] = output_path
+        data["mp4_dir"] = os.path.join(output_path, "mp4")
+        data["gif_dir"] = os.path.join(output_path, "gif")
+        with open("conf.json", "w") as j:
+            json.dump(data, j, indent=4)
+        logger.info(f"Configuration updated with new output path: {output_path}")
+    except Exception as e:
+        logger.error(f"Failed to update configuration: {str(e)}")
 
 # Function to get video duration using ffprobe
 def get_video_duration():
@@ -57,7 +69,6 @@ def get_video_duration():
         logger.error(f"Failed to retrieve video duration: {str(e)}")
         return 0
 
-
 # Function to execute ffmpeg trimming command
 def process_video():
     input_file = input_file_var.get()
@@ -85,51 +96,28 @@ def process_video():
     os.makedirs(mp4_folder, exist_ok=True)
     os.makedirs(gif_folder, exist_ok=True)
 
-    # Construct output file path based on format
-    if output_format == "GIF":
-        output_path = os.path.join(gif_folder, f"{output_filename}.gif")
-        logger.info(f"Output path: {output_path}")
-        try:
-            ffmpeg_cmd = [
-                "ffmpeg",
-                "-i",
-                input_file,
-                "-ss",
-                str(start_trim),
-                "-t",
-                str(video_duration - end_trim),
-                "-vf",
-                "fps=15,scale=640:-1:flags=lanczos",  # Adjust fps and scale for GIF
-                "-y",
-                output_path,
-            ]
-            subprocess.run(ffmpeg_cmd, check=True)
-            logger.info(f"GIF saved as {output_filename}.gif")
-            messagebox.showinfo("Success", f"GIF saved as {output_filename}.gif")
-        except Exception as e:
-            logger.error(f"Failed to create GIF: {str(e)}")
-            messagebox.showerror("Error", f"Failed to create GIF: {str(e)}")
-    else:
+    cmd_array = [
+        "ffmpeg",
+        "-i",
+        input_file,
+    ]
+    if trim_enabled_var.get():
+        cmd_array.extend(["-ss", str(start_trim), "-to", str(video_duration - end_trim)])
+    if output_format == "MP4":
+        cmd_array.extend(["-c:v", "libx264", "-c:a", "aac", "-strict", "experimental"])
         output_path = os.path.join(mp4_folder, f"{output_filename}.mp4")
-        try:
-            ffmpeg_cmd = [
-                "ffmpeg",
-                "-i",
-                input_file,
-                "-ss",
-                str(start_trim),
-                "-t",
-                str(video_duration - end_trim),
-                "-y",
-                output_path,
-            ]
-            subprocess.run(ffmpeg_cmd, check=True)
-            logger.info(f"Video saved as {output_filename}.mp4")
-            messagebox.showinfo("Success", f"Video saved as {output_filename}.mp4")
-        except Exception as e:
-            logger.error(f"Failed to save MP4: {str(e)}")
-            messagebox.showerror("Error", f"Failed to save MP4: {str(e)}")
-
+    if output_format == "GIF":
+        cmd_array.extend(["-vf", "fps=10,scale=320:-1:flags=lanczos"])
+        output_path = os.path.join(gif_folder, f"{output_filename}.gif")
+    try:
+        cmd_array.append(output_path)
+        logger.info(f"Executing command: {' '.join(cmd_array)}")
+        subprocess.run(cmd_array, check=True)
+        logger.info(f"Saved file to: {output_path}")
+        messagebox.showinfo("Success", f"Saved file to: {output_path}")
+    except Exception as e:
+        logger.error(f"Failed to save MP4: {str(e)}")
+        messagebox.showerror("Error", f"Failed to save MP4: {str(e)}")
 
 # Function to open file dialog for selecting input file
 def select_input_file():
@@ -138,13 +126,13 @@ def select_input_file():
         input_file_var.set(file_path)
         get_video_duration()
 
-
 # Function to open file dialog for selecting output folder
 def select_output_folder():
     folder_path = filedialog.askdirectory()
     if folder_path:
         output_folder_var.set(folder_path)
-
+        # Update configuration with the new output path
+        save_config(folder_path)
 
 # Function to toggle trimming options
 def toggle_trimming():
@@ -155,6 +143,15 @@ def toggle_trimming():
         start_slider.config(state="disabled")
         end_slider.config(state="disabled")
 
+# Function to open file dialog for selecting output folder
+def select_output_folder():
+    folder_path = filedialog.askdirectory()
+    if folder_path:
+        output_folder_var.set(folder_path)
+        # Update configuration with the new output path
+        save_config(folder_path)
+        output_directory_label.config(text=f"Output Directory: '{folder_path}'")
+        logger.info(f"Output directory set to: {folder_path}")
 
 # Create the main window
 root = tk.Tk()
@@ -176,7 +173,7 @@ video_duration = 0
 
 # Output Folder Dropdown (Hidden by default)
 output_folder_var = tk.StringVar()
-output_folder_var.set(os.getcwd())  # Default to current working directory
+output_folder_var.set(OUTPUT_PATH)  # Use default from config file
 output_label = tk.Label(root, text="Output Folder (Hidden):")
 output_dropdown = tk.Entry(root, textvariable=output_folder_var, width=50)
 output_button = tk.Button(root, text="Browse", command=select_output_folder)
@@ -221,15 +218,19 @@ format_dropdown.grid(row=6, column=1, padx=10, pady=10)
 process_button = tk.Button(root, text="Process Video", command=process_video)
 process_button.grid(row=7, column=1, padx=10, pady=10)
 
-# Menu for hiding output folder option
+# Menu for selecting output folder
 menu_bar = Menu(root)
 file_menu = Menu(menu_bar, tearoff=0)
 file_menu.add_command(
     label="Select Output Folder",
-    command=lambda: (output_label.grid(), output_dropdown.grid(), output_button.grid()),
+    command=select_output_folder
 )
 menu_bar.add_cascade(label="Options", menu=file_menu)
 root.config(menu=menu_bar)
+
+# Add label to display output directory at the bottom of the app
+output_directory_label = tk.Label(root, text=f"Output Directory: '{OUTPUT_PATH}'")
+output_directory_label.grid(row=8, column=0, columnspan=3, padx=10, pady=10)
 
 # Run the main loop
 root.mainloop()

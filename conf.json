@@ -3,7 +3,7 @@
         "version": 1,
         "formatters": {
             "debug": {
-                "format": "[%(levelname)s] > %(asctime)s - %(name) - %(module)s:%(lineno)s - %(message)s %(exc_info)s",
+                "format": "[%(levelname)s] > %(asctime)s - %(name)s - %(module)s:%(lineno)s - %(message)s %(exc_info)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S"
             }
         },
@@ -25,6 +25,8 @@
         }
     },
     "logger_name": "ffmpeg_app",
-    "output_path": "C:/Users/public/Videos/ffmpeg_output",
-    "log_file": "ffmpeg_app.log"
+    "output_path": "C:/Users/wmorris/Videos/FFout",
+    "log_file": "ffmpeg_app.log",
+    "mp4_dir": "C:/Users/wmorris/Videos/FFout\\mp4",
+    "gif_dir": "C:/Users/wmorris/Videos/FFout\\gif"
 }
