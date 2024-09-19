@@ -1,0 +1,30 @@
+{
+    "logging_config": {
+        "version": 1,
+        "formatters": {
+            "debug": {
+                "format": "[%(levelname)s] > %(asctime)s - %(name) - %(module)s:%(lineno)s - %(message)s %(exc_info)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S"
+            }
+        },
+        "handlers": {
+            "file": {
+                "class": "logging.FileHandler",
+                "level": "DEBUG",
+                "formatter": "debug",
+                "filename": "ffmpeg_app.log",
+                "mode": "a",
+                "encoding": "utf-8"
+            }
+        },
+        "root": {
+            "level": "DEBUG",
+            "handlers": [
+                "file"
+            ]
+        }
+    },
+    "logger_name": "ffmpeg_app",
+    "output_path": "C:/Users/public/Videos/ffmpeg_output",
+    "log_file": "ffmpeg_app.log"
+}
