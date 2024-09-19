@@ -12,12 +12,12 @@ LOGGER_NAME: str
 LOG_FILE: str
 
 try:
-    with open('conf.json', 'r') as j:
+    with open("conf.json", "r") as j:
         data = json.load(j)
-    OUTPUT_PATH = data['output_dir']
-    dictConfig(data['logging_config'])
-    LOGGER_NAME = data['logger_name']
-    LOG_FILE = os.path.join(os.path.dirname(__file__), data['log_file'])
+    OUTPUT_PATH = data["output_dir"]
+    dictConfig(data["logging_config"])
+    LOGGER_NAME = data["logger_name"]
+    LOG_FILE = os.path.join(os.path.dirname(__file__), data["log_file"])
 except FileNotFoundError or FileExistsError as err:
     print(f"Error: {err}")
     exit(1)
@@ -35,13 +35,18 @@ def get_video_duration():
     try:
         ffprobe_cmd = [
             "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            input_file
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            input_file,
         ]
-        result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        duration = float(result.stdout.decode('utf-8').strip())
+        result = subprocess.run(
+            ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        duration = float(result.stdout.decode("utf-8").strip())
         video_duration_label.config(text=f"Video Duration: {int(duration)} seconds")
         start_slider.config(to=int(duration))
         end_slider.config(to=int(duration))
@@ -52,6 +57,7 @@ def get_video_duration():
         logger.error(f"Failed to retrieve video duration: {str(e)}")
         return 0
 
+
 # Function to execute ffmpeg trimming command
 def process_video():
     input_file = input_file_var.get()
@@ -60,11 +66,17 @@ def process_video():
     start_trim = start_slider.get() if trim_enabled_var.get() else 0
     end_trim = end_slider.get() if trim_enabled_var.get() else 0
     output_format = format_var.get()
-    logger.info(f"Processing video: {input_file} to {output_folder} as {output_filename}.{output_format}")
+    logger.info(
+        f"Processing video: {input_file} to {output_folder} as {output_filename}.{output_format}"
+    )
 
     if not input_file or not output_folder or not output_filename:
-        messagebox.showerror("Error", "Please select both input file, output folder, and provide a name.")
-        logger.error("Please select both input file, output folder, and provide a name.")
+        messagebox.showerror(
+            "Error", "Please select both input file, output folder, and provide a name."
+        )
+        logger.error(
+            "Please select both input file, output folder, and provide a name."
+        )
         return
 
     # Ensure output folders exist
@@ -80,11 +92,16 @@ def process_video():
         try:
             ffmpeg_cmd = [
                 "ffmpeg",
-                "-i", input_file,
-                "-ss", str(start_trim),
-                "-t", str(video_duration - end_trim),
-                "-vf", "fps=15,scale=640:-1:flags=lanczos",  # Adjust fps and scale for GIF
-                "-y", output_path
+                "-i",
+                input_file,
+                "-ss",
+                str(start_trim),
+                "-t",
+                str(video_duration - end_trim),
+                "-vf",
+                "fps=15,scale=640:-1:flags=lanczos",  # Adjust fps and scale for GIF
+                "-y",
+                output_path,
             ]
             subprocess.run(ffmpeg_cmd, check=True)
             logger.info(f"GIF saved as {output_filename}.gif")
@@ -97,10 +114,14 @@ def process_video():
         try:
             ffmpeg_cmd = [
                 "ffmpeg",
-                "-i", input_file,
-                "-ss", str(start_trim),
-                "-t", str(video_duration - end_trim),
-                "-y", output_path
+                "-i",
+                input_file,
+                "-ss",
+                str(start_trim),
+                "-t",
+                str(video_duration - end_trim),
+                "-y",
+                output_path,
             ]
             subprocess.run(ffmpeg_cmd, check=True)
             logger.info(f"Video saved as {output_filename}.mp4")
@@ -109,6 +130,7 @@ def process_video():
             logger.error(f"Failed to save MP4: {str(e)}")
             messagebox.showerror("Error", f"Failed to save MP4: {str(e)}")
 
+
 # Function to open file dialog for selecting input file
 def select_input_file():
     file_path = filedialog.askopenfilename(filetypes=[("MP4 files", "*.mp4")])
@@ -116,20 +138,23 @@ def select_input_file():
         input_file_var.set(file_path)
         get_video_duration()
 
+
 # Function to open file dialog for selecting output folder
 def select_output_folder():
     folder_path = filedialog.askdirectory()
     if folder_path:
         output_folder_var.set(folder_path)
 
+
 # Function to toggle trimming options
 def toggle_trimming():
     if trim_enabled_var.get():
-        start_slider.config(state='normal')
-        end_slider.config(state='normal')
+        start_slider.config(state="normal")
+        end_slider.config(state="normal")
     else:
-        start_slider.config(state='disabled')
-        end_slider.config(state='disabled')
+        start_slider.config(state="disabled")
+        end_slider.config(state="disabled")
+
 
 # Create the main window
 root = tk.Tk()
@@ -166,17 +191,23 @@ rename_entry.grid(row=2, column=1, padx=10, pady=10)
 # Sliders for trimming start and end
 start_slider_label = tk.Label(root, text="Trim Seconds from Start:")
 start_slider_label.grid(row=3, column=0, padx=10, pady=10)
-start_slider = tk.Scale(root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, state='disabled')
+start_slider = tk.Scale(
+    root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, state="disabled"
+)
 start_slider.grid(row=3, column=1, padx=10, pady=10)
 
 end_slider_label = tk.Label(root, text="Trim Seconds from End:")
 end_slider_label.grid(row=4, column=0, padx=10, pady=10)
-end_slider = tk.Scale(root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, state='disabled')
+end_slider = tk.Scale(
+    root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, state="disabled"
+)
 end_slider.grid(row=4, column=1, padx=10, pady=10)
 
 # Radio button to enable/disable trimming
 trim_enabled_var = tk.IntVar(value=0)
-trim_radio = tk.Checkbutton(root, text="Enable Trimming", variable=trim_enabled_var, command=toggle_trimming)
+trim_radio = tk.Checkbutton(
+    root, text="Enable Trimming", variable=trim_enabled_var, command=toggle_trimming
+)
 trim_radio.grid(row=5, column=1, padx=10, pady=10)
 
 # Format Selection (MP4 or GIF)
@@ -193,7 +224,10 @@ process_button.grid(row=7, column=1, padx=10, pady=10)
 # Menu for hiding output folder option
 menu_bar = Menu(root)
 file_menu = Menu(menu_bar, tearoff=0)
-file_menu.add_command(label="Select Output Folder", command=lambda: (output_label.grid(), output_dropdown.grid(), output_button.grid()))
+file_menu.add_command(
+    label="Select Output Folder",
+    command=lambda: (output_label.grid(), output_dropdown.grid(), output_button.grid()),
+)
 menu_bar.add_cascade(label="Options", menu=file_menu)
 root.config(menu=menu_bar)
 
