@@ -14,7 +14,7 @@ LOG_FILE: str
 try:
     with open("conf.json", "r") as j:
         data = json.load(j)
-    OUTPUT_PATH = data["output_dir"]
+    OUTPUT_PATH = data["output_path"]
     dictConfig(data["logging_config"])
     LOGGER_NAME = data["logger_name"]
     LOG_FILE = os.path.join(os.path.dirname(__file__), data["log_file"])
