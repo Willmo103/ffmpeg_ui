@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, Menu
 import subprocess
 import json
+import tkinter.font as tkFont
 
 # Set up Global Variables
 OUTPUT_PATH: str
@@ -26,6 +27,7 @@ except (FileNotFoundError, FileExistsError) as err:
 # Set up logging
 logger = logging.getLogger(LOGGER_NAME)
 
+
 # Function to save updated configuration to conf.json
 def save_config(output_path):
     try:
@@ -39,6 +41,7 @@ def save_config(output_path):
     except Exception as e:
         logger.error(f"Failed to update configuration: {str(e)}")
 
+
 # Function to get video duration and dimensions using ffprobe
 def get_video_info():
     input_file = input_file_var.get()
@@ -47,10 +50,14 @@ def get_video_info():
     try:
         ffprobe_cmd = [
             "ffprobe",
-            "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=width,height,duration",
-            "-of", "csv=s=x:p=0",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height,duration",
+            "-of",
+            "csv=s=x:p=0",
             input_file,
         ]
         result = subprocess.run(
@@ -61,12 +68,15 @@ def get_video_info():
         video_duration_label.config(text=f"Video Duration: {int(duration)} seconds")
         start_slider.config(to=int(duration))
         end_slider.config(to=int(duration))
-        logger.info(f"Video: {input_file}, Dimensions: {width}x{height}, Duration: {int(duration)} seconds")
+        logger.info(
+            f"Video: {input_file}, Dimensions: {width}x{height}, Duration: {int(duration)} seconds"
+        )
         return int(width), int(height), duration
     except Exception as e:
         messagebox.showerror("Error", f"Failed to retrieve video info: {str(e)}")
         logger.error(f"Failed to retrieve video info: {str(e)}")
         return 0, 0, 0
+
 
 # Function to execute ffmpeg trimming command
 def process_video():
@@ -103,7 +113,9 @@ def process_video():
     cmd_array = ["ffmpeg", "-i", input_file]
 
     if trim_enabled_var.get():
-        cmd_array.extend(["-ss", str(start_trim), "-to", str(video_duration - end_trim)])
+        cmd_array.extend(
+            ["-ss", str(start_trim), "-to", str(video_duration - end_trim)]
+        )
 
     # MP4 conversion logic
     if output_format == "MP4":
@@ -133,6 +145,7 @@ def select_input_file():
         input_file_var.set(file_path)
         get_video_info()
 
+
 # Function to open file dialog for selecting output folder
 def select_output_folder():
     folder_path = filedialog.askdirectory()
@@ -140,6 +153,7 @@ def select_output_folder():
         output_folder_var.set(folder_path)
         # Update configuration with the new output path
         save_config(folder_path)
+
 
 # Function to toggle trimming options
 def toggle_trimming():
@@ -149,6 +163,7 @@ def toggle_trimming():
     else:
         start_slider.config(state="disabled")
         end_slider.config(state="disabled")
+
 
 # Function to open file dialog for selecting output folder
 def select_output_folder():
@@ -160,23 +175,18 @@ def select_output_folder():
         output_directory_label.config(text=f"Output Directory: '{folder_path}'")
         logger.info(f"Output directory set to: {folder_path}")
 
+
 # Create the main window
 root = tk.Tk()
 root.title("FFmpeg Video Processor")
 
-# Input File Dropdown
-input_file_var = tk.StringVar()
-input_label = tk.Label(root, text="Input Video:")
-input_label.grid(row=0, column=0, padx=10, pady=10)
-input_dropdown = tk.Entry(root, textvariable=input_file_var, width=50)
-input_dropdown.grid(row=0, column=1, padx=10, pady=10)
-input_button = tk.Button(root, text="Browse", command=select_input_file)
-input_button.grid(row=0, column=2, padx=10, pady=10)
+# Set padding and spacing
+padding = {"padx": 10, "pady": 10}
 
-# Video Duration Label
-video_duration_label = tk.Label(root, text="Video Duration: Unknown")
-video_duration_label.grid(row=1, column=1, padx=10, pady=10)
-video_duration = 0
+# Custom font
+title_font = tkFont.Font(family="Helvetica", size=12, weight="bold")
+label_font = tkFont.Font(family="Helvetica", size=10)
+button_font = tkFont.Font(family="Helvetica", size=10, weight="bold")
 
 # Output Folder Dropdown (Hidden by default)
 output_folder_var = tk.StringVar()
@@ -185,59 +195,85 @@ output_label = tk.Label(root, text="Output Folder (Hidden):")
 output_dropdown = tk.Entry(root, textvariable=output_folder_var, width=50)
 output_button = tk.Button(root, text="Browse", command=select_output_folder)
 
+# Input File Dropdown
+input_file_var = tk.StringVar()
+input_label = tk.Label(root, text="Input Video:", font=label_font)
+input_label.grid(row=0, column=0, **padding, sticky="e")
+input_dropdown = tk.Entry(
+    root, textvariable=input_file_var, width=50, bd=2, relief="groove"
+)
+input_dropdown.grid(row=0, column=1, **padding)
+input_button = tk.Button(
+    root,
+    text="Browse",
+    command=select_input_file,
+    font=button_font,
+    bd=2,
+    relief="raised",
+)
+input_button.grid(row=0, column=2, **padding)
+
+# Video Duration Label
+video_duration_label = tk.Label(root, text="Video Duration: Unknown", font=label_font)
+video_duration_label.grid(row=1, column=1, **padding)
+
 # Rename field
-rename_label = tk.Label(root, text="Rename Output File:")
-rename_label.grid(row=2, column=0, padx=10, pady=10)
+rename_label = tk.Label(root, text="Rename Output File:", font=label_font)
+rename_label.grid(row=2, column=0, **padding, sticky="e")
 rename_var = tk.StringVar()
-rename_entry = tk.Entry(root, textvariable=rename_var, width=50)
-rename_entry.grid(row=2, column=1, padx=10, pady=10)
+rename_entry = tk.Entry(root, textvariable=rename_var, width=50, bd=2, relief="groove")
+rename_entry.grid(row=2, column=1, **padding)
 
 # Sliders for trimming start and end
-start_slider_label = tk.Label(root, text="Trim Seconds from Start:")
-start_slider_label.grid(row=3, column=0, padx=10, pady=10)
-start_slider = tk.Scale(
-    root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, state="disabled"
-)
-start_slider.grid(row=3, column=1, padx=10, pady=10)
+start_slider_label = tk.Label(root, text="Trim Seconds from Start:", font=label_font)
+start_slider_label.grid(row=3, column=0, **padding, sticky="e")
+start_slider = tk.Scale(root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, bd=2)
+start_slider.grid(row=3, column=1, **padding)
 
-end_slider_label = tk.Label(root, text="Trim Seconds from End:")
-end_slider_label.grid(row=4, column=0, padx=10, pady=10)
-end_slider = tk.Scale(
-    root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, state="disabled"
-)
-end_slider.grid(row=4, column=1, padx=10, pady=10)
+end_slider_label = tk.Label(root, text="Trim Seconds from End:", font=label_font)
+end_slider_label.grid(row=4, column=0, **padding, sticky="e")
+end_slider = tk.Scale(root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, bd=2)
+end_slider.grid(row=4, column=1, **padding)
 
-# Radio button to enable/disable trimming
+# Trimming checkbox
 trim_enabled_var = tk.IntVar(value=0)
 trim_radio = tk.Checkbutton(
-    root, text="Enable Trimming", variable=trim_enabled_var, command=toggle_trimming
+    root, text="Enable Trimming", variable=trim_enabled_var, font=label_font
 )
-trim_radio.grid(row=5, column=1, padx=10, pady=10)
+trim_radio.grid(row=5, column=1, **padding)
 
 # Format Selection (MP4 or GIF)
 format_var = tk.StringVar(value="GIF")
-format_label = tk.Label(root, text="Output Format:")
-format_label.grid(row=6, column=0, padx=10, pady=10)
+format_label = tk.Label(root, text="Output Format:", font=label_font)
+format_label.grid(row=6, column=0, **padding, sticky="e")
 format_dropdown = tk.OptionMenu(root, format_var, "MP4", "GIF")
-format_dropdown.grid(row=6, column=1, padx=10, pady=10)
+format_dropdown.config(width=8, bd=2, relief="groove")
+format_dropdown.grid(row=6, column=1, **padding)
 
 # Process Button
-process_button = tk.Button(root, text="Process Video", command=process_video)
-process_button.grid(row=7, column=1, padx=10, pady=10)
+process_button = tk.Button(
+    root,
+    text="Process Video",
+    command=process_video,
+    font=button_font,
+    width=20,
+    bd=2,
+    relief="raised",
+)
+process_button.grid(row=7, column=1, **padding)
+
+# Output Directory Display
+output_directory_label = tk.Label(
+    root, text=f"Output Directory: '{OUTPUT_PATH}'", font=label_font
+)
+output_directory_label.grid(row=8, column=0, columnspan=3, **padding)
 
 # Menu for selecting output folder
 menu_bar = Menu(root)
 file_menu = Menu(menu_bar, tearoff=0)
-file_menu.add_command(
-    label="Select Output Folder",
-    command=select_output_folder
-)
+file_menu.add_command(label="Select Output Folder", command=select_output_folder)
 menu_bar.add_cascade(label="Options", menu=file_menu)
 root.config(menu=menu_bar)
-
-# Add label to display output directory at the bottom of the app
-output_directory_label = tk.Label(root, text=f"Output Directory: '{OUTPUT_PATH}'")
-output_directory_label.grid(row=8, column=0, columnspan=3, padx=10, pady=10)
 
 # Run the main loop
 root.mainloop()
