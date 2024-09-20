@@ -12,6 +12,7 @@ OUTPUT_PATH: str
 LOGGER_NAME: str
 LOG_FILE: str
 
+
 # Load configuration
 try:
     with open("conf.json", "r") as j:
@@ -71,6 +72,7 @@ def get_video_info():
         logger.info(
             f"Video: {input_file}, Dimensions: {width}x{height}, Duration: {int(duration)} seconds"
         )
+        rename_var.set(os.path.basename(input_file).replace(".mp4", "_processed"))
         return int(width), int(height), duration
     except Exception as e:
         messagebox.showerror("Error", f"Failed to retrieve video info: {str(e)}")
@@ -126,6 +128,13 @@ def process_video():
     if output_format == "GIF":
         cmd_array.extend([f"-vf", f"fps=10,scale={width}:{height}:flags=lanczos"])
         output_path = os.path.join(gif_folder, f"{output_filename}.gif")
+
+    # Look for the output file and prompt user to overwrite
+    if os.path.exists(output_path):
+        logger.info("Creating unique filename for duplicate file")
+        output_path = output_path.replace(
+            f".{output_format.lower()}", f"_1.{output_format.lower()}"
+        )
 
     try:
         cmd_array.append(output_path)
