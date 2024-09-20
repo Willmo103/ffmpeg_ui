@@ -11,6 +11,7 @@ import tkinter.font as tkFont
 OUTPUT_PATH: str
 LOGGER_NAME: str
 LOG_FILE: str
+FFMPEG_DIR = "bin"  # This is where we'll place the binaries
 
 
 # Load configuration
@@ -28,6 +29,15 @@ except (FileNotFoundError, FileExistsError) as err:
 # Set up logging
 logger = logging.getLogger(LOGGER_NAME)
 
+# Check if FFmpeg binaries are present
+if (
+    not os.path.exists(os.path.join(FFMPEG_DIR, "ffmpeg.exe"))
+    or not os.path.exists(os.path.join(FFMPEG_DIR, "ffprobe.exe"))
+    or not os.path.exists(os.path.join(FFMPEG_DIR, "ffplay.exe"))
+):
+    logger.warning("FFmpeg binaries not found in the bin directory.")
+    # Download FFmpeg if not in the bin directory
+    download_ffmpeg()
 
 # Function to save updated configuration to conf.json
 def save_config(output_path):
