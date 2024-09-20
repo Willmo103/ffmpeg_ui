@@ -6,12 +6,23 @@ from tkinter import filedialog, messagebox, Menu
 import subprocess
 import json
 import tkinter.font as tkFont
+import sys
+
+# Path to the FFmpeg binaries, which will be bundled inside the executable
+if getattr(sys, 'frozen', False):  # Check if running as a PyInstaller bundle
+    FFMPEG_DIR = os.path.join(sys._MEIPASS, "bin")
+else:
+    FFMPEG_DIR = "bin"
 
 # Set up Global Variables
 OUTPUT_PATH: str
 LOGGER_NAME: str
 LOG_FILE: str
 FFMPEG_DIR = "bin"  # This is where we'll place the binaries
+FFMPEG = os.path.join(FFMPEG_DIR, "ffmpeg.exe")
+FFPROBE = os.path.join(FFMPEG_DIR, "ffprobe.exe")
+FFPLAY = os.path.join(FFMPEG_DIR, "ffplay.exe")
+
 
 
 # Load configuration
@@ -29,16 +40,6 @@ except (FileNotFoundError, FileExistsError) as err:
 # Set up logging
 logger = logging.getLogger(LOGGER_NAME)
 
-# Check if FFmpeg binaries are present
-if (
-    not os.path.exists(os.path.join(FFMPEG_DIR, "ffmpeg.exe"))
-    or not os.path.exists(os.path.join(FFMPEG_DIR, "ffprobe.exe"))
-    or not os.path.exists(os.path.join(FFMPEG_DIR, "ffplay.exe"))
-):
-    logger.warning("FFmpeg binaries not found in the bin directory.")
-    # Download FFmpeg if not in the bin directory
-    download_ffmpeg()
-
 # Function to save updated configuration to conf.json
 def save_config(output_path):
     try:
@@ -53,35 +54,26 @@ def save_config(output_path):
         logger.error(f"Failed to update configuration: {str(e)}")
 
 
-# Function to get video duration and dimensions using ffprobe
 def get_video_info():
     input_file = input_file_var.get()
     if not input_file:
         return
     try:
         ffprobe_cmd = [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height,duration",
-            "-of",
-            "csv=s=x:p=0",
+            FFPROBE,  # Use the dynamically resolved FFPROBE path
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,duration",
+            "-of", "csv=s=x:p=0",
             input_file,
         ]
-        result = subprocess.run(
-            ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+        result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         width, height, duration = result.stdout.decode("utf-8").strip().split("x")
         duration = float(duration)
         video_duration_label.config(text=f"Video Duration: {int(duration)} seconds")
         start_slider.config(to=int(duration))
         end_slider.config(to=int(duration))
-        logger.info(
-            f"Video: {input_file}, Dimensions: {width}x{height}, Duration: {int(duration)} seconds"
-        )
+        logger.info(f"Video: {input_file}, Dimensions: {width}x{height}, Duration: {int(duration)} seconds")
         rename_var.set(os.path.basename(input_file).replace(".mp4", "_processed"))
         return int(width), int(height), duration
     except Exception as e:
@@ -122,7 +114,7 @@ def process_video():
     os.makedirs(gif_folder, exist_ok=True)
 
     # Construct ffmpeg command array
-    cmd_array = ["ffmpeg", "-i", input_file]
+    cmd_array = [FFMPEG, "-i", input_file]  # Use the dynamically resolved FFMPEG path
 
     if trim_enabled_var.get():
         cmd_array.extend(
