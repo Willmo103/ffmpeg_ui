@@ -1,4 +1,4 @@
-# main.py
+# main_app.py
 
 import os
 import json
@@ -8,14 +8,14 @@ import logging.config
 from pathlib import Path
 from tkinter import (
     Tk, Frame, Label, Button, Checkbutton, IntVar, filedialog,
-    messagebox, Scale, HORIZONTAL, OptionMenu, StringVar, Toplevel
+    messagebox, Scale, HORIZONTAL, OptionMenu, StringVar, ttk, Toplevel
 )
-from tkinter import ttk  # Import ttk for Notebook
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import threading
 
 # Configuration and Logging Setup
 CONFIG_PATH = "conf.json"
+
 
 def load_config():
     if not os.path.exists(CONFIG_PATH):
@@ -25,7 +25,7 @@ def load_config():
                 "version": 1,
                 "formatters": {
                     "debug": {
-                        "format": "[%(levelname)s] > %(asctime)s - %(name)s - %(module)s:%(lineno)s - %(message)s %(exc_info)s",
+                        "format": "[%(levelname)s] > %(asctime)s - %(name)s - %(module)s:%(lineno)s - %(message)s",
                         "datefmt": "%Y-%m-%d %H:%M:%S"
                     }
                 },
@@ -59,6 +59,7 @@ def load_config():
         with open(CONFIG_PATH, 'r') as f:
             return json.load(f)
 
+
 config = load_config()
 
 # Setup logging
@@ -69,6 +70,8 @@ logger = logging.getLogger(config["logger_name"])
 def ensure_directories():
     output_path = config.get("output_path")
     if not output_path:
+        root = Tk()
+        root.withdraw()  # Hide the main window
         output_path = filedialog.askdirectory(title="Select Output Directory")
         if not output_path:
             messagebox.showerror("Error", "Output directory is required.")
@@ -77,23 +80,24 @@ def ensure_directories():
         config["mp4_dir"] = os.path.join(output_path, "mp4")
         config["gif_dir"] = os.path.join(output_path, "gif")
         for directory in [output_path, config["mp4_dir"], config["gif_dir"]]:
-            try:
-                os.makedirs(directory, exist_ok=True)
-            except PermissionError as e:
-                messagebox.showerror("Permission Error", f"Cannot create directory {directory}: {e}")
-                exit(1)
+            if not os.path.exists(directory):
+                try:
+                    os.makedirs(directory)
+                except PermissionError as e:
+                    messagebox.showerror("Permission Error", f"Cannot create directory: {directory}\n{e}")
+                    exit(1)
         # Save config
         with open(CONFIG_PATH, 'w') as f:
             json.dump(config, f, indent=4)
     else:
         for directory in [config["output_path"], config["mp4_dir"], config["gif_dir"]]:
-            try:
-                os.makedirs(directory, exist_ok=True)
-            except PermissionError as e:
-                messagebox.showerror("Permission Error", f"Cannot create directory {directory}: {e}")
-                exit(1)
+            if not os.path.exists(directory):
+                try:
+                    os.makedirs(directory)
+                except PermissionError as e:
+                    messagebox.showerror("Permission Error", f"Cannot create directory: {directory}\n{e}")
+                    exit(1)
 
-# Run directory check before initializing the GUI
 ensure_directories()
 
 # FFmpeg Path
@@ -109,122 +113,108 @@ class FFmpegApp:
     def __init__(self, master):
         self.master = master
         master.title("FFmpeg Application")
-        master.geometry("800x600")  # Set default larger window size
+        master.geometry("800x600")  # Set a larger default size
 
-        # Create Notebook for tabs
-        self.notebook = ttk.Notebook(master)
-        self.notebook.pack(expand=True, fill='both')
+        # Create Tabs
+        self.tab_control = ttk.Notebook(master)
 
-        # Convert Tab
-        self.convert_tab = Frame(self.notebook)
-        self.notebook.add(self.convert_tab, text="Convert")
+        self.convert_tab = ttk.Frame(self.tab_control)
+        self.transform_tab = ttk.Frame(self.tab_control)
 
-        # Transform Tab
-        self.transform_tab = Frame(self.notebook)
-        self.notebook.add(self.transform_tab, text="Transform")
+        self.tab_control.add(self.convert_tab, text='Convert')
+        self.tab_control.add(self.transform_tab, text='Transform')
+        self.tab_control.pack(expand=1, fill='both')
 
         # Initialize Convert and Transform Tabs
         self.init_convert_tab()
         self.init_transform_tab()
 
-        # Frame Display
-        self.init_display_frame()
-
     def init_convert_tab(self):
-        # Buttons for conversion options
-        convert_options = [
-            ("Video to GIF", self.video_to_gif),
-            ("GIF to Video", self.gif_to_video),
-            ("Images to GIF", self.images_to_gif),
-            ("GIF to Images", self.gif_to_images)
-        ]
+        # Conversion Options
+        convert_frame = Frame(self.convert_tab)
+        convert_frame.pack(pady=10, padx=10, fill='x')
 
-        for idx, (text, command) in enumerate(convert_options):
-            btn = Button(self.convert_tab, text=text, width=20, command=command)
-            btn.grid(row=idx, column=0, padx=10, pady=10, sticky='w')
+        Label(convert_frame, text="Conversion Options:", font=("Helvetica", 14)).pack(anchor='w')
+
+        # Video to GIF
+        self.video_to_gif_btn = Button(convert_frame, text="Video to GIF", command=self.video_to_gif)
+        self.video_to_gif_btn.pack(fill='x', pady=5)
+
+        # GIF to Video
+        self.gif_to_video_btn = Button(convert_frame, text="GIF to Video", command=self.gif_to_video)
+        self.gif_to_video_btn.pack(fill='x', pady=5)
+
+        # Images to GIF
+        self.images_to_gif_btn = Button(convert_frame, text="Images to GIF", command=self.images_to_gif)
+        self.images_to_gif_btn.pack(fill='x', pady=5)
+
+        # GIF to Images
+        self.gif_to_images_btn = Button(convert_frame, text="GIF to Images", command=self.gif_to_images)
+        self.gif_to_images_btn.pack(fill='x', pady=5)
+
+        # Frame Display
+        self.display_label = Label(self.convert_tab, text="Frame Display")
+        self.display_label.pack(pady=10)
+        self.frame_canvas = Label(self.convert_tab)
+        self.frame_canvas.pack(pady=5)
+
+        # Placeholder
+        self.display_placeholder()
+
+    # Still working on the options here and where to display options for resizing the Videos before converting them
+    # Need to unlock the options for resizing, quality, fps. etc. when a video is selected for conversion
 
     def init_transform_tab(self):
+        # Transformation Options
+        transform_frame = Frame(self.transform_tab)
+        transform_frame.pack(pady=10, padx=10, fill='x')
+
+        Label(transform_frame, text="Transformation Options:", font=("Helvetica", 14)).pack(anchor='w')
+
         # Size Adjustment
-        size_label = Label(self.transform_tab, text="Adjust Size:")
-        size_label.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        size_frame = Frame(transform_frame)
+        size_frame.pack(fill='x', pady=5)
 
-        self.width_slider = Scale(self.transform_tab, from_=100, to=1920, orient=HORIZONTAL, label="Width")
-        self.width_slider.set(640)
-        self.width_slider.grid(row=1, column=0, padx=10, pady=5, sticky='w')
+        Label(size_frame, text="Width:").grid(row=0, column=0, sticky='w')
+        self.width_slider = Scale(size_frame, from_=100, to=1920, orient=HORIZONTAL)
+        self.width_slider.grid(row=0, column=1, padx=5)
 
-        self.height_slider = Scale(self.transform_tab, from_=100, to=1080, orient=HORIZONTAL, label="Height")
-        self.height_slider.set(480)
-        self.height_slider.grid(row=2, column=0, padx=10, pady=5, sticky='w')
+        Label(size_frame, text="Height:").grid(row=1, column=0, sticky='w')
+        self.height_slider = Scale(size_frame, from_=100, to=1080, orient=HORIZONTAL)
+        self.height_slider.grid(row=1, column=1, padx=5)
 
         # Aspect Ratio Options
-        aspect_label = Label(self.transform_tab, text="Aspect Ratio:")
-        aspect_label.grid(row=3, column=0, padx=10, pady=10, sticky='w')
+        aspect_frame = Frame(transform_frame)
+        aspect_frame.pack(fill='x', pady=5)
 
+        Label(aspect_frame, text="Aspect Ratio:").grid(row=0, column=0, sticky='w')
         self.aspect_var = StringVar(self.transform_tab)
         self.aspect_var.set("Free")
         aspect_options = ["Free", "Square (W=L)", "16:9", "4:3"]
-        self.aspect_menu = OptionMenu(self.transform_tab, self.aspect_var, *aspect_options, command=self.change_aspect_ratio)
-        self.aspect_menu.grid(row=4, column=0, padx=10, pady=5, sticky='w')
+        self.aspect_menu = OptionMenu(aspect_frame, self.aspect_var, *aspect_options, command=self.change_aspect_ratio)
+        self.aspect_menu.grid(row=0, column=1, padx=5, sticky='w')
 
-        # Direction Adjustment (Rotate)
-        direction_label = Label(self.transform_tab, text="Direction:")
-        direction_label.grid(row=5, column=0, padx=10, pady=10, sticky='w')
+        # Transformation Buttons
+        transform_buttons_frame = Frame(transform_frame)
+        transform_buttons_frame.pack(pady=10)
 
-        self.direction_var = StringVar(self.transform_tab)
-        self.direction_var.set("None")
-        direction_options = ["None", "90°", "180°", "270°"]
-        self.direction_menu = OptionMenu(self.transform_tab, self.direction_var, *direction_options)
-        self.direction_menu.grid(row=6, column=0, padx=10, pady=5, sticky='w')
+        self.select_transform_btn = Button(transform_buttons_frame, text="Select Video/GIF for Transformation", command=self.select_transform_file)
+        self.select_transform_btn.pack(fill='x', pady=5)
 
-        # Quality Scaling
-        quality_label = Label(self.transform_tab, text="Quality:")
-        quality_label.grid(row=7, column=0, padx=10, pady=10, sticky='w')
-
-        self.quality_slider = Scale(self.transform_tab, from_=1, to=31, orient=HORIZONTAL, label="FFmpeg Quality")
-        self.quality_slider.set(23)  # Default FFmpeg quality
-        self.quality_slider.grid(row=8, column=0, padx=10, pady=5, sticky='w')
-
-        # Apply Transformation Button
-        self.apply_transform_btn = Button(self.transform_tab, text="Apply Transformation", command=self.apply_transformation)
-        self.apply_transform_btn.grid(row=9, column=0, padx=10, pady=20, sticky='w')
-
-    def change_aspect_ratio(self, value):
-        # Update width and height based on aspect ratio
-        if value == "Square (W=L)":
-            self.width_slider.config(state='disabled')
-            self.height_slider.config(state='disabled')
-            self.width_slider.set(480)
-            self.height_slider.set(480)
-        elif value == "16:9":
-            self.width_slider.config(state='normal')
-            self.height_slider.config(state='normal')
-            self.width_slider.set(640)
-            self.height_slider.set(360)
-        elif value == "4:3":
-            self.width_slider.config(state='normal')
-            self.height_slider.config(state='normal')
-            self.width_slider.set(640)
-            self.height_slider.set(480)
-        else:
-            self.width_slider.config(state='normal')
-            self.height_slider.config(state='normal')
-
-
-    def init_display_frame(self):
-        # Placeholder for frame display
-        self.display_label = Label(self.master, text="Frame Display", font=("Arial", 16))
-        self.display_label.pack(pady=10)
-
-        self.frame_canvas = Label(self.master, bg='grey', width=400, height=300)
-        self.frame_canvas.pack(pady=10)
-
-        self.display_placeholder()
+        self.apply_transform_btn = Button(transform_buttons_frame, text="Apply Transformation", command=self.apply_transformation, state="disabled")
+        self.apply_transform_btn.pack(fill='x', pady=5)
 
     def display_placeholder(self):
         # Create a placeholder image with grey background and white text
-        width, height = 400, 300
-        placeholder = Image.new('RGB', (width, height), color='grey')
-        draw = ImageDraw.Draw(placeholder)
+        placeholder = Image.new('RGB', (400, 300), color='grey')
+        # draw = ImageDraw.Draw(placeholder)
+        # text = "No Media Selected"
+        # font = ImageFont.load_default()
+        # text_width, text_height = draw.textsize(text, font=font)
+        # text_x = (placeholder.width - text_width) / 2
+        # text_y = (placeholder.height - text_height) / 2
+        # draw.text((text_x, text_y), text, fill='white', font=font)
+
         self.photo = ImageTk.PhotoImage(placeholder)
         self.frame_canvas.config(image=self.photo)
 
@@ -242,10 +232,10 @@ class FFmpegApp:
             if output_file:
                 cmd = [
                     FFMPEG_PATH,
-                    "-i", file_path,
-                    "-vf", "fps=10,scale=320:-1:flags=lanczos",
-                    "-gifflags", "+transdiff",
-                    "-y",
+                    '-i', file_path,
+                    '-vf', 'fps=10,scale=320:-1:flags=lanczos',
+                    '-gifflags', '+transdiff',
+                    '-y',  # Overwrite output file if it exists
                     output_file
                 ]
                 threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Converting Video to GIF...")).start()
@@ -264,11 +254,12 @@ class FFmpegApp:
             if output_file:
                 cmd = [
                     FFMPEG_PATH,
-                    "-i", file_path,
-                    "-movflags", "faststart",
-                    "-pix_fmt", "yuv420p",
-                    "-vf", "scale=320:-1",
-                    "-y",
+                    '-f', 'gif',
+                    '-i', file_path,
+                    '-movflags', 'faststart',
+                    '-pix_fmt', 'yuv420p',
+                    '-vf', 'scale=320:-1',
+                    '-y',  # Overwrite output file if it exists
                     output_file
                 ]
                 threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Converting GIF to Video...")).start()
@@ -282,16 +273,14 @@ class FFmpegApp:
                 title="Save GIF As"
             )
             if output_file:
-                # FFmpeg expects a sequential image pattern
-                # Ensure images are named in a sequential manner
-                # e.g., frame_0001.png, frame_0002.png, etc.
-                pattern = os.path.join(input_dir, "frame_%04d.png")
+                # Ensure all images are sorted
+                images_pattern = os.path.join(input_dir, "frame_%04d.png")
                 cmd = [
                     FFMPEG_PATH,
-                    "-framerate", "10",
-                    "-i", pattern,
-                    "-vf", "scale=320:-1:flags=lanczos",
-                    "-y",
+                    '-framerate', '10',
+                    '-i', images_pattern,
+                    '-vf', 'scale=320:-1:flags=lanczos',
+                    '-y',  # Overwrite output file if it exists
                     output_file
                 ]
                 threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Creating GIF from Images...")).start()
@@ -304,104 +293,171 @@ class FFmpegApp:
         if file_path:
             output_dir = filedialog.askdirectory(title="Select Output Directory for Frames")
             if output_dir:
-                pattern = os.path.join(output_dir, "frame_%04d.png")
+                images_pattern = os.path.join(output_dir, "frame_%04d.png")
                 cmd = [
                     FFMPEG_PATH,
-                    "-i", file_path,
-                    "-vf", "fps=10",
-                    pattern,
-                    "-y"
+                    '-i', file_path,
+                    '-vf', 'fps=10',
+                    images_pattern,
+                    '-y'  # Overwrite output files if they exist
                 ]
                 threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Extracting Frames from GIF...")).start()
 
-    def apply_transformation(self):
-        # Select media to transform
-        file_path = filedialog.askopenfilename(
-            title="Select Media File",
+    def select_transform_file(self):
+        self.transform_file_path = filedialog.askopenfilename(
+            title="Select Video or GIF File",
             filetypes=[("Video Files", "*.mp4;*.avi;*.mov;*.mkv"), ("GIF Files", "*.gif")]
         )
-        if file_path:
-            # Choose output file based on input type
-            ext = os.path.splitext(file_path)[1].lower()
-            if ext in [".mp4", ".avi", ".mov", ".mkv"]:
-                output_file = filedialog.asksaveasfilename(
-                    defaultextension=ext,
-                    filetypes=[("Video Files", "*.mp4;*.avi;*.mov;*.mkv")],
-                    title="Save Transformed Video As"
-                )
-            elif ext == ".gif":
-                output_file = filedialog.asksaveasfilename(
-                    defaultextension=".gif",
-                    filetypes=[("GIF Files", "*.gif")],
-                    title="Save Transformed GIF As"
-                )
+        if self.transform_file_path:
+            self.apply_transform_btn.config(state="normal")
+            self.display_frame(self.transform_file_path)
+
+    def apply_transformation(self):
+        if not hasattr(self, 'transform_file_path'):
+            messagebox.showerror("Error", "No file selected for transformation.")
+            return
+
+        output_file = filedialog.asksaveasfilename(
+            defaultextension=".mp4",
+            filetypes=[("MP4 Files", "*.mp4"), ("GIF Files", "*.gif")],
+            title="Save Transformed File As"
+        )
+        if not output_file:
+            return
+
+        width = self.width_slider.get()
+        height = self.height_slider.get()
+
+        # Determine if the output is GIF or Video based on the extension
+        ext = os.path.splitext(output_file)[1].lower()
+        if ext == ".gif":
+            output_format = "gif"
+        else:
+            output_format = "mp4"
+
+        scale_filter = f"scale={width}:{height}:flags=lanczos"
+
+        if output_format == "gif":
+            cmd = [
+                FFMPEG_PATH,
+                '-i', self.transform_file_path,
+                '-vf', scale_filter,
+                '-y',
+                output_file
+            ]
+        else:
+            cmd = [
+                FFMPEG_PATH,
+                '-i', self.transform_file_path,
+                '-vf', scale_filter,
+                '-movflags', 'faststart',
+                '-pix_fmt', 'yuv420p',
+                '-y',
+                output_file
+            ]
+
+        threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Applying Transformation...")).start()
+
+    def change_aspect_ratio(self, value):
+        if value == "Free":
+            self.width_slider.config(state="normal")
+            self.height_slider.config(state="normal")
+            self.width_slider.config(command=None)
+            self.height_slider.config(command=None)
+        elif value == "Square (W=L)":
+            self.height_slider.set(self.width_slider.get())
+            self.height_slider.config(state="disabled")
+            self.width_slider.config(command=self.update_square)
+        elif value == "16:9":
+            calculated_height = int(self.width_slider.get() * 9 / 16)
+            self.height_slider.set(calculated_height)
+            self.height_slider.config(state="disabled")
+            self.width_slider.config(command=self.update_16_9)
+        elif value == "4:3":
+            calculated_height = int(self.width_slider.get() * 3 / 4)
+            self.height_slider.set(calculated_height)
+            self.height_slider.config(state="disabled")
+            self.width_slider.config(command=self.update_4_3)
+
+    def update_square(self, val):
+        try:
+            val = int(val)
+            self.height_slider.set(val)
+        except ValueError:
+            pass
+
+    def update_16_9(self, val):
+        try:
+            val = int(val)
+            calculated_height = int(val * 9 / 16)
+            self.height_slider.set(calculated_height)
+        except ValueError:
+            pass
+
+    def update_4_3(self, val):
+        try:
+            val = int(val)
+            calculated_height = int(val * 3 / 4)
+            self.height_slider.set(calculated_height)
+        except ValueError:
+            pass
+
+    def display_frame(self, file_path, first=True):
+        # Check file size or duration
+        file_size = os.path.getsize(file_path)
+        if file_size > 50 * 1024 * 1024:  # 50 MB limit for example
+            logger.info("File too large for frame display.")
+            self.display_placeholder()
+            return
+
+        ext = os.path.splitext(file_path)[1].lower()
+        temp_frame = os.path.join(config["output_path"], "temp_frame.png")
+
+        try:
+            if ext == ".gif":
+                with Image.open(file_path) as img:
+                    frame = img.convert('RGBA')
+                    frame.save(temp_frame)
             else:
-                messagebox.showerror("Unsupported Format", "Selected file format is not supported.")
-                return
+                # Use FFmpeg to extract frame
+                cmd = [
+                    FFMPEG_PATH,
+                    "-i", file_path,
+                    "-vf", "select=eq(n\,0)",
+                    "-q:v", "3",
+                    temp_frame
+                ]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
-            if output_file:
-                # Build FFmpeg command based on transformations
-                vf_filters = []
+            # Open the frame image
+            with Image.open(temp_frame) as img:
+                img.thumbnail((400, 400))
+                self.photo = ImageTk.PhotoImage(img)
+                self.frame_canvas.config(image=self.photo)
 
-                # Size adjustment
-                width = self.width_slider.get()
-                height = self.height_slider.get()
-                vf_filters.append(f"scale={width}:{height}")
+            # Remove the temp frame
+            os.remove(temp_frame)
 
-                # Direction adjustment
-                direction = self.direction_var.get()
-                if direction == "90°":
-                    vf_filters.append("transpose=1")
-                elif direction == "180°":
-                    vf_filters.append("transpose=2,transpose=2")
-                elif direction == "270°":
-                    vf_filters.append("transpose=2")
-
-                # Combine filters
-                vf = ",".join(vf_filters)
-
-                # Quality scaling (for videos: CRF; for GIFs: use appropriate options)
-                quality = self.quality_slider.get()
-
-                if ext in [".mp4", ".avi", ".mov", ".mkv"]:
-                    # For videos, use CRF for quality
-                    cmd = [
-                        FFMPEG_PATH,
-                        "-i", file_path,
-                        "-vf", vf,
-                        "-c:v", "libx264",
-                        "-crf", str(quality),
-                        "-y",
-                        output_file
-                    ]
-                elif ext == ".gif":
-                    # For GIFs, quality control is different; adjust fps and scaling
-                    cmd = [
-                        FFMPEG_PATH,
-                        "-i", file_path,
-                        "-vf", vf,
-                        "-y",
-                        output_file
-                    ]
-                else:
-                    messagebox.showerror("Unsupported Format", "Selected file format is not supported.")
-                    return
-
-                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Applying Transformation...")).start()
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg failed: {e}")
+            messagebox.showerror("Error", "Failed to extract frame from video.")
+            self.display_placeholder()
+        except Exception as e:
+            logger.error(f"Error displaying frame: {e}")
+            messagebox.showerror("Error", f"An error occurred: {e}")
+            self.display_placeholder()
 
     def run_ffmpeg_command(self, cmd, message):
-        logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
-        # Show progress window
-        self.show_progress(message)
         try:
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-            logger.info(f"{message} Completed successfully. Output: {result.stdout.decode()}")
+            self.show_progress(message)
+            logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
+            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             messagebox.showinfo("Success", f"{message} Completed successfully.")
+            logger.info(f"{message} Completed successfully.")
         except subprocess.CalledProcessError as e:
-            logger.error(f"{message} Failed. Error: {e.stderr.decode()}")
-            messagebox.showerror("Error", f"{message} Failed.\nError: {e.stderr.decode()}")
+            logger.error(f"{message} Failed: {e.stderr.decode()}")
+            messagebox.showerror("Error", f"{message} Failed.")
         finally:
-            # Close progress window
             if hasattr(self, 'progress_window') and self.progress_window.winfo_exists():
                 self.progress_window.destroy()
 
@@ -409,17 +465,11 @@ class FFmpegApp:
         self.progress_window = Toplevel(self.master)
         self.progress_window.title("Processing")
         self.progress_window.geometry("300x100")
-        self.progress_window.grab_set()  # Make window modal
+        Label(self.progress_window, text=message).pack(pady=20)
+        self.progress_bar = ttk.Progressbar(self.progress_window, mode='indeterminate')
+        self.progress_bar.pack(pady=10, padx=20, fill='x')
+        self.progress_bar.start()
 
-        label = Label(self.progress_window, text=message)
-        label.pack(pady=20)
-
-        # Simple progress indicator
-        progress = ttk.Progressbar(self.progress_window, mode='indeterminate')
-        progress.pack(pady=10, padx=20, fill='x')
-        progress.start()
-
-# Run the application
 if __name__ == "__main__":
     root = Tk()
     app = FFmpegApp(root)

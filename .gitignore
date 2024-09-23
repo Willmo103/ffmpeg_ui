@@ -1,2 +1,6 @@
 *.log
 bin/*
+*dev*
+*venv*
+*vscode*
+*ieda*
