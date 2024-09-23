@@ -161,6 +161,9 @@ class FFmpegApp:
         # Placeholder
         self.display_placeholder()
 
+    # Still working on the options here and where to display options for resizing the Videos before converting them
+    # Need to unlock the options for resizing, quality, fps. etc. when a video is selected for conversion
+
     def init_transform_tab(self):
         # Transformation Options
         transform_frame = Frame(self.transform_tab)
