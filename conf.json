@@ -25,8 +25,8 @@
         }
     },
     "logger_name": "ffmpeg_app",
-    "output_path": "C:/Users/wmorris/Videos/FFout",
+    "output_path": "C:/Users/willm/Videos/FFout",
     "log_file": "ffmpeg_app.log",
-    "mp4_dir": "C:/Users/wmorris/Videos/FFout\\mp4",
-    "gif_dir": "C:/Users/wmorris/Videos/FFout\\gif"
+    "mp4_dir": "C:/Users/willm/Videos/FFout/mp4",
+    "gif_dir": "C:/Users/willm/Videos/FFout/gif"
 }
