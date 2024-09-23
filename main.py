@@ -1,290 +1,473 @@
-import logging
-from logging.config import dictConfig
+# main_app.py
+
 import os
-import tkinter as tk
-from tkinter import filedialog, messagebox, Menu
-import subprocess
 import json
-import tkinter.font as tkFont
-import sys
+import subprocess
+import logging
+import logging.config
+from pathlib import Path
+from tkinter import (
+    Tk, Frame, Label, Button, Checkbutton, IntVar, filedialog,
+    messagebox, Scale, HORIZONTAL, OptionMenu, StringVar, ttk, Toplevel
+)
+from PIL import Image, ImageTk, ImageDraw, ImageFont
+import threading
 
-# Path to the FFmpeg binaries, which will be bundled inside the executable
-if getattr(sys, 'frozen', False):  # Check if running as a PyInstaller bundle
-    FFMPEG_DIR = os.path.join(sys._MEIPASS, "bin")
-else:
-    FFMPEG_DIR = "bin"
-
-# Set up Global Variables
-OUTPUT_PATH: str
-LOGGER_NAME: str
-LOG_FILE: str
-FFMPEG_DIR = "bin"  # This is where we'll place the binaries
-FFMPEG = os.path.join(FFMPEG_DIR, "ffmpeg.exe")
-FFPROBE = os.path.join(FFMPEG_DIR, "ffprobe.exe")
-FFPLAY = os.path.join(FFMPEG_DIR, "ffplay.exe")
+# Configuration and Logging Setup
+CONFIG_PATH = "conf.json"
 
 
+def load_config():
+    if not os.path.exists(CONFIG_PATH):
+        # Create default config
+        default_config = {
+            "logging_config": {
+                "version": 1,
+                "formatters": {
+                    "debug": {
+                        "format": "[%(levelname)s] > %(asctime)s - %(name)s - %(module)s:%(lineno)s - %(message)s",
+                        "datefmt": "%Y-%m-%d %H:%M:%S"
+                    }
+                },
+                "handlers": {
+                    "file": {
+                        "class": "logging.FileHandler",
+                        "level": "DEBUG",
+                        "formatter": "debug",
+                        "filename": "ffmpeg_app.log",
+                        "mode": "a",
+                        "encoding": "utf-8"
+                    }
+                },
+                "root": {
+                    "level": "DEBUG",
+                    "handlers": [
+                        "file"
+                    ]
+                }
+            },
+            "logger_name": "ffmpeg_app",
+            "output_path": "",
+            "log_file": "ffmpeg_app.log",
+            "mp4_dir": "",
+            "gif_dir": ""
+        }
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump(default_config, f, indent=4)
+        return default_config
+    else:
+        with open(CONFIG_PATH, 'r') as f:
+            return json.load(f)
 
-# Load configuration
-try:
-    with open("conf.json", "r") as j:
-        data = json.load(j)
-    OUTPUT_PATH = data["output_path"]
-    dictConfig(data["logging_config"])
-    LOGGER_NAME = data["logger_name"]
-    LOG_FILE = os.path.join(os.path.dirname(__file__), data["log_file"])
-except (FileNotFoundError, FileExistsError) as err:
-    print(f"Error: {err}")
+
+config = load_config()
+
+# Setup logging
+logging.config.dictConfig(config["logging_config"])
+logger = logging.getLogger(config["logger_name"])
+
+# Ensure output directories
+def ensure_directories():
+    output_path = config.get("output_path")
+    if not output_path:
+        root = Tk()
+        root.withdraw()  # Hide the main window
+        output_path = filedialog.askdirectory(title="Select Output Directory")
+        if not output_path:
+            messagebox.showerror("Error", "Output directory is required.")
+            exit(1)
+        config["output_path"] = output_path
+        config["mp4_dir"] = os.path.join(output_path, "mp4")
+        config["gif_dir"] = os.path.join(output_path, "gif")
+        for directory in [output_path, config["mp4_dir"], config["gif_dir"]]:
+            if not os.path.exists(directory):
+                try:
+                    os.makedirs(directory)
+                except PermissionError as e:
+                    messagebox.showerror("Permission Error", f"Cannot create directory: {directory}\n{e}")
+                    exit(1)
+        # Save config
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump(config, f, indent=4)
+    else:
+        for directory in [config["output_path"], config["mp4_dir"], config["gif_dir"]]:
+            if not os.path.exists(directory):
+                try:
+                    os.makedirs(directory)
+                except PermissionError as e:
+                    messagebox.showerror("Permission Error", f"Cannot create directory: {directory}\n{e}")
+                    exit(1)
+
+ensure_directories()
+
+# FFmpeg Path
+FFMPEG_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "bin")
+FFMPEG_PATH = os.path.join(FFMPEG_DIR, "ffmpeg.exe")
+
+if not os.path.exists(FFMPEG_PATH):
+    messagebox.showerror("FFmpeg Not Found", "FFmpeg is not installed. Please run setup_ffmpeg.py first.")
     exit(1)
 
-# Set up logging
-logger = logging.getLogger(LOGGER_NAME)
+# Main Application Class
+class FFmpegApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("FFmpeg Application")
+        master.geometry("800x600")  # Set a larger default size
 
-# Function to save updated configuration to conf.json
-def save_config(output_path):
-    try:
-        # Update configuration with the new output path
-        data["output_path"] = output_path
-        data["mp4_dir"] = os.path.join(output_path, "mp4")
-        data["gif_dir"] = os.path.join(output_path, "gif")
-        with open("conf.json", "w") as j:
-            json.dump(data, j, indent=4)
-        logger.info(f"Configuration updated with new output path: {output_path}")
-    except Exception as e:
-        logger.error(f"Failed to update configuration: {str(e)}")
+        # Create Tabs
+        self.tab_control = ttk.Notebook(master)
 
+        self.convert_tab = ttk.Frame(self.tab_control)
+        self.transform_tab = ttk.Frame(self.tab_control)
 
-def get_video_info():
-    input_file = input_file_var.get()
-    if not input_file:
-        return
-    try:
-        ffprobe_cmd = [
-            FFPROBE,  # Use the dynamically resolved FFPROBE path
-            "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=width,height,duration",
-            "-of", "csv=s=x:p=0",
-            input_file,
-        ]
-        result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        width, height, duration = result.stdout.decode("utf-8").strip().split("x")
-        duration = float(duration)
-        video_duration_label.config(text=f"Video Duration: {int(duration)} seconds")
-        start_slider.config(to=int(duration))
-        end_slider.config(to=int(duration))
-        logger.info(f"Video: {input_file}, Dimensions: {width}x{height}, Duration: {int(duration)} seconds")
-        rename_var.set(os.path.basename(input_file).replace(".mp4", "_processed"))
-        return int(width), int(height), duration
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to retrieve video info: {str(e)}")
-        logger.error(f"Failed to retrieve video info: {str(e)}")
-        return 0, 0, 0
+        self.tab_control.add(self.convert_tab, text='Convert')
+        self.tab_control.add(self.transform_tab, text='Transform')
+        self.tab_control.pack(expand=1, fill='both')
 
+        # Initialize Convert and Transform Tabs
+        self.init_convert_tab()
+        self.init_transform_tab()
 
-# Function to execute ffmpeg trimming command
-def process_video():
-    input_file = input_file_var.get()
-    output_folder = output_folder_var.get()
-    output_filename = rename_var.get()
-    start_trim = start_slider.get() if trim_enabled_var.get() else 0
-    end_trim = end_slider.get() if trim_enabled_var.get() else 0
-    output_format = format_var.get()
+    def init_convert_tab(self):
+        # Conversion Options
+        convert_frame = Frame(self.convert_tab)
+        convert_frame.pack(pady=10, padx=10, fill='x')
 
-    # Get video dimensions for GIF creation
-    width, height, video_duration = get_video_info()
+        Label(convert_frame, text="Conversion Options:", font=("Helvetica", 14)).pack(anchor='w')
 
-    logger.info(
-        f"Processing video: {input_file} to {output_folder} as {output_filename}.{output_format}"
-    )
+        # Video to GIF
+        self.video_to_gif_btn = Button(convert_frame, text="Video to GIF", command=self.video_to_gif)
+        self.video_to_gif_btn.pack(fill='x', pady=5)
 
-    if not input_file or not output_folder or not output_filename:
-        messagebox.showerror(
-            "Error", "Please select both input file, output folder, and provide a name."
+        # GIF to Video
+        self.gif_to_video_btn = Button(convert_frame, text="GIF to Video", command=self.gif_to_video)
+        self.gif_to_video_btn.pack(fill='x', pady=5)
+
+        # Images to GIF
+        self.images_to_gif_btn = Button(convert_frame, text="Images to GIF", command=self.images_to_gif)
+        self.images_to_gif_btn.pack(fill='x', pady=5)
+
+        # GIF to Images
+        self.gif_to_images_btn = Button(convert_frame, text="GIF to Images", command=self.gif_to_images)
+        self.gif_to_images_btn.pack(fill='x', pady=5)
+
+        # Frame Display
+        self.display_label = Label(self.convert_tab, text="Frame Display")
+        self.display_label.pack(pady=10)
+        self.frame_canvas = Label(self.convert_tab)
+        self.frame_canvas.pack(pady=5)
+
+        # Placeholder
+        self.display_placeholder()
+
+    def init_transform_tab(self):
+        # Transformation Options
+        transform_frame = Frame(self.transform_tab)
+        transform_frame.pack(pady=10, padx=10, fill='x')
+
+        Label(transform_frame, text="Transformation Options:", font=("Helvetica", 14)).pack(anchor='w')
+
+        # Size Adjustment
+        size_frame = Frame(transform_frame)
+        size_frame.pack(fill='x', pady=5)
+
+        Label(size_frame, text="Width:").grid(row=0, column=0, sticky='w')
+        self.width_slider = Scale(size_frame, from_=100, to=1920, orient=HORIZONTAL)
+        self.width_slider.grid(row=0, column=1, padx=5)
+
+        Label(size_frame, text="Height:").grid(row=1, column=0, sticky='w')
+        self.height_slider = Scale(size_frame, from_=100, to=1080, orient=HORIZONTAL)
+        self.height_slider.grid(row=1, column=1, padx=5)
+
+        # Aspect Ratio Options
+        aspect_frame = Frame(transform_frame)
+        aspect_frame.pack(fill='x', pady=5)
+
+        Label(aspect_frame, text="Aspect Ratio:").grid(row=0, column=0, sticky='w')
+        self.aspect_var = StringVar(self.transform_tab)
+        self.aspect_var.set("Free")
+        aspect_options = ["Free", "Square (W=L)", "16:9", "4:3"]
+        self.aspect_menu = OptionMenu(aspect_frame, self.aspect_var, *aspect_options, command=self.change_aspect_ratio)
+        self.aspect_menu.grid(row=0, column=1, padx=5, sticky='w')
+
+        # Transformation Buttons
+        transform_buttons_frame = Frame(transform_frame)
+        transform_buttons_frame.pack(pady=10)
+
+        self.select_transform_btn = Button(transform_buttons_frame, text="Select Video/GIF for Transformation", command=self.select_transform_file)
+        self.select_transform_btn.pack(fill='x', pady=5)
+
+        self.apply_transform_btn = Button(transform_buttons_frame, text="Apply Transformation", command=self.apply_transformation, state="disabled")
+        self.apply_transform_btn.pack(fill='x', pady=5)
+
+    def display_placeholder(self):
+        # Create a placeholder image with grey background and white text
+        placeholder = Image.new('RGB', (400, 300), color='grey')
+        draw = ImageDraw.Draw(placeholder)
+        text = "No Media Selected"
+        font = ImageFont.load_default()
+        text_width, text_height = draw.textsize(text, font=font)
+        text_x = (placeholder.width - text_width) / 2
+        text_y = (placeholder.height - text_height) / 2
+        draw.text((text_x, text_y), text, fill='white', font=font)
+
+        self.photo = ImageTk.PhotoImage(placeholder)
+        self.frame_canvas.config(image=self.photo)
+
+    def video_to_gif(self):
+        file_path = filedialog.askopenfilename(
+            title="Select Video File",
+            filetypes=[("Video Files", "*.mp4;*.avi;*.mov;*.mkv")]
         )
-        logger.error(
-            "Please select both input file, output folder, and provide a name."
+        if file_path:
+            output_file = filedialog.asksaveasfilename(
+                defaultextension=".gif",
+                filetypes=[("GIF Files", "*.gif")],
+                title="Save GIF As"
+            )
+            if output_file:
+                cmd = [
+                    FFMPEG_PATH,
+                    '-i', file_path,
+                    '-vf', 'fps=10,scale=320:-1:flags=lanczos',
+                    '-gifflags', '+transdiff',
+                    '-y',  # Overwrite output file if it exists
+                    output_file
+                ]
+                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Converting Video to GIF...")).start()
+
+    def gif_to_video(self):
+        file_path = filedialog.askopenfilename(
+            title="Select GIF File",
+            filetypes=[("GIF Files", "*.gif")]
         )
-        return
+        if file_path:
+            output_file = filedialog.asksaveasfilename(
+                defaultextension=".mp4",
+                filetypes=[("MP4 Files", "*.mp4")],
+                title="Save Video As"
+            )
+            if output_file:
+                cmd = [
+                    FFMPEG_PATH,
+                    '-f', 'gif',
+                    '-i', file_path,
+                    '-movflags', 'faststart',
+                    '-pix_fmt', 'yuv420p',
+                    '-vf', 'scale=320:-1',
+                    '-y',  # Overwrite output file if it exists
+                    output_file
+                ]
+                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Converting GIF to Video...")).start()
 
-    # Ensure output folders exist
-    mp4_folder = os.path.join(output_folder, "mp4")
-    gif_folder = os.path.join(output_folder, "gif")
-    os.makedirs(mp4_folder, exist_ok=True)
-    os.makedirs(gif_folder, exist_ok=True)
+    def images_to_gif(self):
+        input_dir = filedialog.askdirectory(title="Select Directory with Images")
+        if input_dir:
+            output_file = filedialog.asksaveasfilename(
+                defaultextension=".gif",
+                filetypes=[("GIF Files", "*.gif")],
+                title="Save GIF As"
+            )
+            if output_file:
+                # Ensure all images are sorted
+                images_pattern = os.path.join(input_dir, "frame_%04d.png")
+                cmd = [
+                    FFMPEG_PATH,
+                    '-framerate', '10',
+                    '-i', images_pattern,
+                    '-vf', 'scale=320:-1:flags=lanczos',
+                    '-y',  # Overwrite output file if it exists
+                    output_file
+                ]
+                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Creating GIF from Images...")).start()
 
-    # Construct ffmpeg command array
-    cmd_array = [FFMPEG, "-i", input_file]  # Use the dynamically resolved FFMPEG path
-
-    if trim_enabled_var.get():
-        cmd_array.extend(
-            ["-ss", str(start_trim), "-to", str(video_duration - end_trim)]
+    def gif_to_images(self):
+        file_path = filedialog.askopenfilename(
+            title="Select GIF File",
+            filetypes=[("GIF Files", "*.gif")]
         )
+        if file_path:
+            output_dir = filedialog.askdirectory(title="Select Output Directory for Frames")
+            if output_dir:
+                images_pattern = os.path.join(output_dir, "frame_%04d.png")
+                cmd = [
+                    FFMPEG_PATH,
+                    '-i', file_path,
+                    '-vf', 'fps=10',
+                    images_pattern,
+                    '-y'  # Overwrite output files if they exist
+                ]
+                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Extracting Frames from GIF...")).start()
 
-    # MP4 conversion logic
-    if output_format == "MP4":
-        cmd_array.extend(["-c:v", "libx264", "-c:a", "aac", "-strict", "experimental"])
-        output_path = os.path.join(mp4_folder, f"{output_filename}.mp4")
-
-    # GIF conversion logic
-    if output_format == "GIF":
-        cmd_array.extend([f"-vf", f"fps=10,scale={width}:{height}:flags=lanczos"])
-        output_path = os.path.join(gif_folder, f"{output_filename}.gif")
-
-    # Look for the output file and prompt user to overwrite
-    if os.path.exists(output_path):
-        logger.info("Creating unique filename for duplicate file")
-        output_path = output_path.replace(
-            f".{output_format.lower()}", f"_1.{output_format.lower()}"
+    def select_transform_file(self):
+        self.transform_file_path = filedialog.askopenfilename(
+            title="Select Video or GIF File",
+            filetypes=[("Video Files", "*.mp4;*.avi;*.mov;*.mkv"), ("GIF Files", "*.gif")]
         )
+        if self.transform_file_path:
+            self.apply_transform_btn.config(state="normal")
+            self.display_frame(self.transform_file_path)
 
-    try:
-        cmd_array.append(output_path)
-        logger.info(f"Executing command: {' '.join(cmd_array)}")
-        subprocess.run(cmd_array, check=True)
-        logger.info(f"Saved file to: {output_path}")
-        messagebox.showinfo("Success", f"Saved file to: {output_path}")
-    except Exception as e:
-        logger.error(f"Failed to save {output_format}: {str(e)}")
-        messagebox.showerror("Error", f"Failed to save {output_format}: {str(e)}")
+    def apply_transformation(self):
+        if not hasattr(self, 'transform_file_path'):
+            messagebox.showerror("Error", "No file selected for transformation.")
+            return
 
+        output_file = filedialog.asksaveasfilename(
+            defaultextension=".mp4",
+            filetypes=[("MP4 Files", "*.mp4"), ("GIF Files", "*.gif")],
+            title="Save Transformed File As"
+        )
+        if not output_file:
+            return
 
-# Function to open file dialog for selecting input file
-def select_input_file():
-    file_path = filedialog.askopenfilename(filetypes=[("MP4 files", "*.mp4")])
-    if file_path:
-        input_file_var.set(file_path)
-        get_video_info()
+        width = self.width_slider.get()
+        height = self.height_slider.get()
 
+        # Determine if the output is GIF or Video based on the extension
+        ext = os.path.splitext(output_file)[1].lower()
+        if ext == ".gif":
+            output_format = "gif"
+        else:
+            output_format = "mp4"
 
-# Function to open file dialog for selecting output folder
-def select_output_folder():
-    folder_path = filedialog.askdirectory()
-    if folder_path:
-        output_folder_var.set(folder_path)
-        # Update configuration with the new output path
-        save_config(folder_path)
+        scale_filter = f"scale={width}:{height}:flags=lanczos"
 
+        if output_format == "gif":
+            cmd = [
+                FFMPEG_PATH,
+                '-i', self.transform_file_path,
+                '-vf', scale_filter,
+                '-y',
+                output_file
+            ]
+        else:
+            cmd = [
+                FFMPEG_PATH,
+                '-i', self.transform_file_path,
+                '-vf', scale_filter,
+                '-movflags', 'faststart',
+                '-pix_fmt', 'yuv420p',
+                '-y',
+                output_file
+            ]
 
-# Function to toggle trimming options
-def toggle_trimming():
-    if trim_enabled_var.get():
-        start_slider.config(state="normal")
-        end_slider.config(state="normal")
-    else:
-        start_slider.config(state="disabled")
-        end_slider.config(state="disabled")
+        threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Applying Transformation...")).start()
 
+    def change_aspect_ratio(self, value):
+        if value == "Free":
+            self.width_slider.config(state="normal")
+            self.height_slider.config(state="normal")
+            self.width_slider.config(command=None)
+            self.height_slider.config(command=None)
+        elif value == "Square (W=L)":
+            self.height_slider.set(self.width_slider.get())
+            self.height_slider.config(state="disabled")
+            self.width_slider.config(command=self.update_square)
+        elif value == "16:9":
+            calculated_height = int(self.width_slider.get() * 9 / 16)
+            self.height_slider.set(calculated_height)
+            self.height_slider.config(state="disabled")
+            self.width_slider.config(command=self.update_16_9)
+        elif value == "4:3":
+            calculated_height = int(self.width_slider.get() * 3 / 4)
+            self.height_slider.set(calculated_height)
+            self.height_slider.config(state="disabled")
+            self.width_slider.config(command=self.update_4_3)
 
-# Function to open file dialog for selecting output folder
-def select_output_folder():
-    folder_path = filedialog.askdirectory()
-    if folder_path:
-        output_folder_var.set(folder_path)
-        # Update configuration with the new output path
-        save_config(folder_path)
-        output_directory_label.config(text=f"Output Directory: '{folder_path}'")
-        logger.info(f"Output directory set to: {folder_path}")
+    def update_square(self, val):
+        try:
+            val = int(val)
+            self.height_slider.set(val)
+        except ValueError:
+            pass
 
+    def update_16_9(self, val):
+        try:
+            val = int(val)
+            calculated_height = int(val * 9 / 16)
+            self.height_slider.set(calculated_height)
+        except ValueError:
+            pass
 
-# Create the main window
-root = tk.Tk()
-root.title("FFmpeg Video Processor")
+    def update_4_3(self, val):
+        try:
+            val = int(val)
+            calculated_height = int(val * 3 / 4)
+            self.height_slider.set(calculated_height)
+        except ValueError:
+            pass
 
-# Set padding and spacing
-padding = {"padx": 10, "pady": 10}
+    def display_frame(self, file_path, first=True):
+        # Check file size or duration
+        file_size = os.path.getsize(file_path)
+        if file_size > 50 * 1024 * 1024:  # 50 MB limit for example
+            logger.info("File too large for frame display.")
+            self.display_placeholder()
+            return
 
-# Custom font
-title_font = tkFont.Font(family="Helvetica", size=12, weight="bold")
-label_font = tkFont.Font(family="Helvetica", size=10)
-button_font = tkFont.Font(family="Helvetica", size=10, weight="bold")
+        ext = os.path.splitext(file_path)[1].lower()
+        temp_frame = os.path.join(config["output_path"], "temp_frame.png")
 
-# Output Folder Dropdown (Hidden by default)
-output_folder_var = tk.StringVar()
-output_folder_var.set(OUTPUT_PATH)  # Use default from config file
-output_label = tk.Label(root, text="Output Folder (Hidden):")
-output_dropdown = tk.Entry(root, textvariable=output_folder_var, width=50)
-output_button = tk.Button(root, text="Browse", command=select_output_folder)
+        try:
+            if ext == ".gif":
+                with Image.open(file_path) as img:
+                    frame = img.convert('RGBA')
+                    frame.save(temp_frame)
+            else:
+                # Use FFmpeg to extract frame
+                cmd = [
+                    FFMPEG_PATH,
+                    "-i", file_path,
+                    "-vf", "select=eq(n\,0)",
+                    "-q:v", "3",
+                    temp_frame
+                ]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
-# Input File Dropdown
-input_file_var = tk.StringVar()
-input_label = tk.Label(root, text="Input Video:", font=label_font)
-input_label.grid(row=0, column=0, **padding, sticky="e")
-input_dropdown = tk.Entry(
-    root, textvariable=input_file_var, width=50, bd=2, relief="groove"
-)
-input_dropdown.grid(row=0, column=1, **padding)
-input_button = tk.Button(
-    root,
-    text="Browse",
-    command=select_input_file,
-    font=button_font,
-    bd=2,
-    relief="raised",
-)
-input_button.grid(row=0, column=2, **padding)
+            # Open the frame image
+            with Image.open(temp_frame) as img:
+                img.thumbnail((400, 400))
+                self.photo = ImageTk.PhotoImage(img)
+                self.frame_canvas.config(image=self.photo)
 
-# Video Duration Label
-video_duration_label = tk.Label(root, text="Video Duration: Unknown", font=label_font)
-video_duration_label.grid(row=1, column=1, **padding)
+            # Remove the temp frame
+            os.remove(temp_frame)
 
-# Rename field
-rename_label = tk.Label(root, text="Rename Output File:", font=label_font)
-rename_label.grid(row=2, column=0, **padding, sticky="e")
-rename_var = tk.StringVar()
-rename_entry = tk.Entry(root, textvariable=rename_var, width=50, bd=2, relief="groove")
-rename_entry.grid(row=2, column=1, **padding)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg failed: {e}")
+            messagebox.showerror("Error", "Failed to extract frame from video.")
+            self.display_placeholder()
+        except Exception as e:
+            logger.error(f"Error displaying frame: {e}")
+            messagebox.showerror("Error", f"An error occurred: {e}")
+            self.display_placeholder()
 
-# Sliders for trimming start and end
-start_slider_label = tk.Label(root, text="Trim Seconds from Start:", font=label_font)
-start_slider_label.grid(row=3, column=0, **padding, sticky="e")
-start_slider = tk.Scale(root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, bd=2)
-start_slider.grid(row=3, column=1, **padding)
+    def run_ffmpeg_command(self, cmd, message):
+        try:
+            self.show_progress(message)
+            logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
+            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            messagebox.showinfo("Success", f"{message} Completed successfully.")
+            logger.info(f"{message} Completed successfully.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"{message} Failed: {e.stderr.decode()}")
+            messagebox.showerror("Error", f"{message} Failed.")
+        finally:
+            if hasattr(self, 'progress_window') and self.progress_window.winfo_exists():
+                self.progress_window.destroy()
 
-end_slider_label = tk.Label(root, text="Trim Seconds from End:", font=label_font)
-end_slider_label.grid(row=4, column=0, **padding, sticky="e")
-end_slider = tk.Scale(root, from_=0, to=100, orient=tk.HORIZONTAL, length=300, bd=2)
-end_slider.grid(row=4, column=1, **padding)
+    def show_progress(self, message):
+        self.progress_window = Toplevel(self.master)
+        self.progress_window.title("Processing")
+        self.progress_window.geometry("300x100")
+        Label(self.progress_window, text=message).pack(pady=20)
+        self.progress_bar = ttk.Progressbar(self.progress_window, mode='indeterminate')
+        self.progress_bar.pack(pady=10, padx=20, fill='x')
+        self.progress_bar.start()
 
-# Trimming checkbox
-trim_enabled_var = tk.IntVar(value=0)
-trim_radio = tk.Checkbutton(
-    root, text="Enable Trimming", variable=trim_enabled_var, font=label_font
-)
-trim_radio.grid(row=5, column=1, **padding)
-
-# Format Selection (MP4 or GIF)
-format_var = tk.StringVar(value="GIF")
-format_label = tk.Label(root, text="Output Format:", font=label_font)
-format_label.grid(row=6, column=0, **padding, sticky="e")
-format_dropdown = tk.OptionMenu(root, format_var, "MP4", "GIF")
-format_dropdown.config(width=8, bd=2, relief="groove")
-format_dropdown.grid(row=6, column=1, **padding)
-
-# Process Button
-process_button = tk.Button(
-    root,
-    text="Process Video",
-    command=process_video,
-    font=button_font,
-    width=20,
-    bd=2,
-    relief="raised",
-)
-process_button.grid(row=7, column=1, **padding)
-
-# Output Directory Display
-output_directory_label = tk.Label(
-    root, text=f"Output Directory: '{OUTPUT_PATH}'", font=label_font
-)
-output_directory_label.grid(row=8, column=0, columnspan=3, **padding)
-
-# Menu for selecting output folder
-menu_bar = Menu(root)
-file_menu = Menu(menu_bar, tearoff=0)
-file_menu.add_command(label="Select Output Folder", command=select_output_folder)
-menu_bar.add_cascade(label="Options", menu=file_menu)
-root.config(menu=menu_bar)
-
-# Run the main loop
-root.mainloop()
+if __name__ == "__main__":
+    root = Tk()
+    app = FFmpegApp(root)
+    root.mainloop()
