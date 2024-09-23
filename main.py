@@ -204,13 +204,13 @@ class FFmpegApp:
     def display_placeholder(self):
         # Create a placeholder image with grey background and white text
         placeholder = Image.new('RGB', (400, 300), color='grey')
-        draw = ImageDraw.Draw(placeholder)
-        text = "No Media Selected"
-        font = ImageFont.load_default()
-        text_width, text_height = draw.textsize(text, font=font)
-        text_x = (placeholder.width - text_width) / 2
-        text_y = (placeholder.height - text_height) / 2
-        draw.text((text_x, text_y), text, fill='white', font=font)
+        # draw = ImageDraw.Draw(placeholder)
+        # text = "No Media Selected"
+        # font = ImageFont.load_default()
+        # text_width, text_height = draw.textsize(text, font=font)
+        # text_x = (placeholder.width - text_width) / 2
+        # text_y = (placeholder.height - text_height) / 2
+        # draw.text((text_x, text_y), text, fill='white', font=font)
 
         self.photo = ImageTk.PhotoImage(placeholder)
         self.frame_canvas.config(image=self.photo)
