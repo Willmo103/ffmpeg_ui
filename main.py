@@ -8,9 +8,9 @@ import logging.config
 from pathlib import Path
 from tkinter import (
     Tk, Frame, Label, Button, Checkbutton, IntVar, filedialog,
-    messagebox, Scale, HORIZONTAL, OptionMenu, StringVar, ttk, Toplevel
+    messagebox, Scale, HORIZONTAL, OptionMenu, StringVar, ttk, Toplevel, Entry
 )
-from PIL import Image, ImageTk, ImageDraw, ImageFont
+from PIL import Image, ImageTk
 import threading
 
 # Configuration and Logging Setup
@@ -113,339 +113,378 @@ class FFmpegApp:
     def __init__(self, master):
         self.master = master
         master.title("FFmpeg Application")
-        master.geometry("800x600")  # Set a larger default size
+        master.geometry("900x700")  # Increased size for more controls
+        master.configure(bg="#2e2e2e")  # Dark background for contrast
 
-        # Create Tabs
-        self.tab_control = ttk.Notebook(master)
+        # Style Configuration
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
 
-        self.convert_tab = ttk.Frame(self.tab_control)
-        self.transform_tab = ttk.Frame(self.tab_control)
+        # Define custom colors
+        self.style.configure("TFrame", background="#2e2e2e")
+        self.style.configure("TLabel", background="#2e2e2e", foreground="#ffffff", font=("Helvetica", 12))
+        self.style.configure("TButton", foreground="#ffffff", background="#4a90e2", font=("Helvetica", 12))
+        self.style.map("TButton",
+                       background=[('active', '#357ab8')])
+        self.style.configure("TScale", background="#2e2e2e")
+        self.style.configure("TCheckbutton", background="#2e2e2e", foreground="#ffffff")
+        self.style.configure("TEntry", fieldbackground="#4a4a4a", foreground="#ffffff")
 
-        self.tab_control.add(self.convert_tab, text='Convert')
-        self.tab_control.add(self.transform_tab, text='Transform')
-        self.tab_control.pack(expand=1, fill='both')
+        # Main Frame
+        self.main_frame = Frame(master)
+        self.main_frame.pack(pady=20, padx=20, fill='both', expand=True)
 
-        # Initialize Convert and Transform Tabs
-        self.init_convert_tab()
-        self.init_transform_tab()
+        # Conversion and Transformation Options
+        self.init_main_controls()
 
-    def init_convert_tab(self):
-        # Conversion Options
-        convert_frame = Frame(self.convert_tab)
-        convert_frame.pack(pady=10, padx=10, fill='x')
+    def init_main_controls(self):
+        # Operation Selection
+        operation_frame = Frame(self.main_frame)
+        operation_frame.pack(fill='x', pady=10)
 
-        Label(convert_frame, text="Conversion Options:", font=("Helvetica", 14)).pack(anchor='w')
+        Label(operation_frame, text="Select Operation:", font=("Helvetica", 14, "bold")).pack(anchor='w')
 
-        # Video to GIF
-        self.video_to_gif_btn = Button(convert_frame, text="Video to GIF", command=self.video_to_gif)
-        self.video_to_gif_btn.pack(fill='x', pady=5)
+        self.operation_var = StringVar()
+        self.operation_var.set("Video to GIF")
+        operations = ["Video to GIF", "GIF to Video", "Images to GIF", "GIF to Images"]
+        self.operation_menu = OptionMenu(operation_frame, self.operation_var, *operations, command=self.update_options)
+        self.operation_menu.config(width=20, font=("Helvetica", 12))
+        self.operation_menu.pack(anchor='w', pady=5)
 
-        # GIF to Video
-        self.gif_to_video_btn = Button(convert_frame, text="GIF to Video", command=self.gif_to_video)
-        self.gif_to_video_btn.pack(fill='x', pady=5)
+        # Dynamic Options Frame
+        self.options_frame = Frame(self.main_frame, bg="#2e2e2e")
+        self.options_frame.pack(fill='both', pady=10)
 
-        # Images to GIF
-        self.images_to_gif_btn = Button(convert_frame, text="Images to GIF", command=self.images_to_gif)
-        self.images_to_gif_btn.pack(fill='x', pady=5)
+        # Common Options
+        # Frames Per Second
+        fps_frame = Frame(self.options_frame, bg="#2e2e2e")
+        fps_frame.pack(fill='x', pady=5)
+        Label(fps_frame, text="Frames Per Second (FPS):").pack(side='left')
+        self.fps_slider = Scale(fps_frame, from_=1, to=60, orient=HORIZONTAL, length=200)
+        self.fps_slider.set(10)
+        self.fps_slider.pack(side='left', padx=10)
+        self.fps_entry = Entry(fps_frame, width=5, bg="#4a4a4a", fg="#ffffff")
+        self.fps_entry.insert(0, "10")
+        self.fps_entry.pack(side='left')
+        self.fps_entry.bind("<Return>", self.update_fps_slider)
 
-        # GIF to Images
-        self.gif_to_images_btn = Button(convert_frame, text="GIF to Images", command=self.gif_to_images)
-        self.gif_to_images_btn.pack(fill='x', pady=5)
-
-        # Frame Display
-        self.display_label = Label(self.convert_tab, text="Frame Display")
-        self.display_label.pack(pady=10)
-        self.frame_canvas = Label(self.convert_tab)
-        self.frame_canvas.pack(pady=5)
-
-        # Placeholder
-        self.display_placeholder()
-
-    # Still working on the options here and where to display options for resizing the Videos before converting them
-    # Need to unlock the options for resizing, quality, fps. etc. when a video is selected for conversion
-
-    def init_transform_tab(self):
-        # Transformation Options
-        transform_frame = Frame(self.transform_tab)
-        transform_frame.pack(pady=10, padx=10, fill='x')
-
-        Label(transform_frame, text="Transformation Options:", font=("Helvetica", 14)).pack(anchor='w')
-
-        # Size Adjustment
-        size_frame = Frame(transform_frame)
+        # Width and Height
+        size_frame = Frame(self.options_frame, bg="#2e2e2e")
         size_frame.pack(fill='x', pady=5)
 
         Label(size_frame, text="Width:").grid(row=0, column=0, sticky='w')
-        self.width_slider = Scale(size_frame, from_=100, to=1920, orient=HORIZONTAL)
-        self.width_slider.grid(row=0, column=1, padx=5)
+        self.width_slider = Scale(size_frame, from_=128, to=1920, orient=HORIZONTAL, length=300, command=self.on_width_change)
+        self.width_slider.set(512)
+        self.width_slider.grid(row=0, column=1, padx=10)
+        self.width_entry = Entry(size_frame, width=5, bg="#4a4a4a", fg="#ffffff")
+        self.width_entry.insert(0, "512")
+        self.width_entry.grid(row=0, column=2)
+        self.width_entry.bind("<Return>", self.update_width_slider)
 
         Label(size_frame, text="Height:").grid(row=1, column=0, sticky='w')
-        self.height_slider = Scale(size_frame, from_=100, to=1080, orient=HORIZONTAL)
-        self.height_slider.grid(row=1, column=1, padx=5)
+        self.height_slider = Scale(size_frame, from_=128, to=1080, orient=HORIZONTAL, length=300, command=self.on_height_change)
+        self.height_slider.set(512)
+        self.height_slider.grid(row=1, column=1, padx=10)
+        self.height_entry = Entry(size_frame, width=5, bg="#4a4a4a", fg="#ffffff")
+        self.height_entry.insert(0, "512")
+        self.height_entry.grid(row=1, column=2)
+        self.height_entry.bind("<Return>", self.update_height_slider)
 
-        # Aspect Ratio Options
-        aspect_frame = Frame(transform_frame)
-        aspect_frame.pack(fill='x', pady=5)
+        # Quality Slider
+        quality_frame = Frame(self.options_frame, bg="#2e2e2e")
+        quality_frame.pack(fill='x', pady=5)
+        Label(quality_frame, text="Quality:").pack(side='left')
+        self.quality_slider = Scale(quality_frame, from_=1, to=100, orient=HORIZONTAL, length=200)
+        self.quality_slider.set(75)
+        self.quality_slider.pack(side='left', padx=10)
+        self.quality_entry = Entry(quality_frame, width=5, bg="#4a4a4a", fg="#ffffff")
+        self.quality_entry.insert(0, "75")
+        self.quality_entry.pack(side='left')
+        self.quality_entry.bind("<Return>", self.update_quality_slider)
 
-        Label(aspect_frame, text="Aspect Ratio:").grid(row=0, column=0, sticky='w')
-        self.aspect_var = StringVar(self.transform_tab)
-        self.aspect_var.set("Free")
-        aspect_options = ["Free", "Square (W=L)", "16:9", "4:3"]
-        self.aspect_menu = OptionMenu(aspect_frame, self.aspect_var, *aspect_options, command=self.change_aspect_ratio)
-        self.aspect_menu.grid(row=0, column=1, padx=5, sticky='w')
+        # Image Type Selection
+        image_type_frame = Frame(self.options_frame, bg="#2e2e2e")
+        image_type_frame.pack(fill='x', pady=5)
+        Label(image_type_frame, text="Image Type:").pack(side='left')
+        self.image_type_var = StringVar()
+        self.image_type_var.set("png")
+        image_types = ["png", "svg", "webp"]
+        self.image_type_menu = OptionMenu(image_type_frame, self.image_type_var, *image_types)
+        self.image_type_menu.config(width=10, font=("Helvetica", 12))
+        self.image_type_menu.pack(side='left', padx=10)
 
-        # Transformation Buttons
-        transform_buttons_frame = Frame(transform_frame)
-        transform_buttons_frame.pack(pady=10)
+        # Transformation Specific Options
+        self.transformation_options = {}
 
-        self.select_transform_btn = Button(transform_buttons_frame, text="Select Video/GIF for Transformation", command=self.select_transform_file)
-        self.select_transform_btn.pack(fill='x', pady=5)
+        # Example: If converting images to GIF, allow sorting options
+        self.sort_var = IntVar()
+        self.sort_check = Checkbutton(self.options_frame, text="Sort Images by Frame Number", variable=self.sort_var, bg="#2e2e2e", fg="#ffffff")
+        self.transformation_options["Images to GIF"] = [self.sort_check]
+        self.sort_check.pack(anchor='w')
 
-        self.apply_transform_btn = Button(transform_buttons_frame, text="Apply Transformation", command=self.apply_transformation, state="disabled")
-        self.apply_transform_btn.pack(fill='x', pady=5)
+        # Conversion Buttons
+        button_frame = Frame(self.main_frame, bg="#2e2e2e")
+        button_frame.pack(pady=20)
 
-    def display_placeholder(self):
-        # Create a placeholder image with grey background and white text
-        placeholder = Image.new('RGB', (400, 300), color='grey')
-        # draw = ImageDraw.Draw(placeholder)
-        # text = "No Media Selected"
-        # font = ImageFont.load_default()
-        # text_width, text_height = draw.textsize(text, font=font)
-        # text_x = (placeholder.width - text_width) / 2
-        # text_y = (placeholder.height - text_height) / 2
-        # draw.text((text_x, text_y), text, fill='white', font=font)
+        self.select_input_btn = Button(button_frame, text="Select Input", command=self.select_input)
+        self.select_input_btn.grid(row=0, column=0, padx=10, pady=5)
 
-        self.photo = ImageTk.PhotoImage(placeholder)
-        self.frame_canvas.config(image=self.photo)
+        self.select_output_btn = Button(button_frame, text="Select Output", command=self.select_output)
+        self.select_output_btn.grid(row=0, column=1, padx=10, pady=5)
 
-    def video_to_gif(self):
-        file_path = filedialog.askopenfilename(
-            title="Select Video File",
-            filetypes=[("Video Files", "*.mp4;*.avi;*.mov;*.mkv")]
-        )
-        if file_path:
-            output_file = filedialog.asksaveasfilename(
-                defaultextension=".gif",
-                filetypes=[("GIF Files", "*.gif")],
-                title="Save GIF As"
-            )
-            if output_file:
-                cmd = [
-                    FFMPEG_PATH,
-                    '-i', file_path,
-                    '-vf', 'fps=10,scale=320:-1:flags=lanczos',
-                    '-gifflags', '+transdiff',
-                    '-y',  # Overwrite output file if it exists
-                    output_file
-                ]
-                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Converting Video to GIF...")).start()
+        self.start_btn = Button(button_frame, text="Start Conversion", command=self.start_conversion)
+        self.start_btn.grid(row=0, column=2, padx=10, pady=5)
 
-    def gif_to_video(self):
-        file_path = filedialog.askopenfilename(
-            title="Select GIF File",
-            filetypes=[("GIF Files", "*.gif")]
-        )
-        if file_path:
-            output_file = filedialog.asksaveasfilename(
-                defaultextension=".mp4",
-                filetypes=[("MP4 Files", "*.mp4")],
-                title="Save Video As"
-            )
-            if output_file:
-                cmd = [
-                    FFMPEG_PATH,
-                    '-f', 'gif',
-                    '-i', file_path,
-                    '-movflags', 'faststart',
-                    '-pix_fmt', 'yuv420p',
-                    '-vf', 'scale=320:-1',
-                    '-y',  # Overwrite output file if it exists
-                    output_file
-                ]
-                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Converting GIF to Video...")).start()
+        # Selected Files
+        selected_frame = Frame(self.main_frame, bg="#2e2e2e")
+        selected_frame.pack(fill='x', pady=10)
 
-    def images_to_gif(self):
-        input_dir = filedialog.askdirectory(title="Select Directory with Images")
-        if input_dir:
-            output_file = filedialog.asksaveasfilename(
-                defaultextension=".gif",
-                filetypes=[("GIF Files", "*.gif")],
-                title="Save GIF As"
-            )
-            if output_file:
-                # Ensure all images are sorted
-                images_pattern = os.path.join(input_dir, "frame_%04d.png")
-                cmd = [
-                    FFMPEG_PATH,
-                    '-framerate', '10',
-                    '-i', images_pattern,
-                    '-vf', 'scale=320:-1:flags=lanczos',
-                    '-y',  # Overwrite output file if it exists
-                    output_file
-                ]
-                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Creating GIF from Images...")).start()
+        Label(selected_frame, text="Input:").grid(row=0, column=0, sticky='w')
+        self.input_path_var = StringVar()
+        self.input_entry = Entry(selected_frame, textvariable=self.input_path_var, width=80, bg="#4a4a4a", fg="#ffffff")
+        self.input_entry.grid(row=0, column=1, padx=5, pady=2)
 
-    def gif_to_images(self):
-        file_path = filedialog.askopenfilename(
-            title="Select GIF File",
-            filetypes=[("GIF Files", "*.gif")]
-        )
-        if file_path:
-            output_dir = filedialog.askdirectory(title="Select Output Directory for Frames")
-            if output_dir:
-                images_pattern = os.path.join(output_dir, "frame_%04d.png")
-                cmd = [
-                    FFMPEG_PATH,
-                    '-i', file_path,
-                    '-vf', 'fps=10',
-                    images_pattern,
-                    '-y'  # Overwrite output files if they exist
-                ]
-                threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Extracting Frames from GIF...")).start()
+        Label(selected_frame, text="Output:").grid(row=1, column=0, sticky='w')
+        self.output_path_var = StringVar()
+        self.output_entry = Entry(selected_frame, textvariable=self.output_path_var, width=80, bg="#4a4a4a", fg="#ffffff")
+        self.output_entry.grid(row=1, column=1, padx=5, pady=2)
 
-    def select_transform_file(self):
-        self.transform_file_path = filedialog.askopenfilename(
-            title="Select Video or GIF File",
-            filetypes=[("Video Files", "*.mp4;*.avi;*.mov;*.mkv"), ("GIF Files", "*.gif")]
-        )
-        if self.transform_file_path:
-            self.apply_transform_btn.config(state="normal")
-            self.display_frame(self.transform_file_path)
+    def update_options(self, selected_operation):
+        # Hide all transformation-specific options
+        for widgets in self.transformation_options.values():
+            for widget in widgets:
+                widget.pack_forget()
 
-    def apply_transformation(self):
-        if not hasattr(self, 'transform_file_path'):
-            messagebox.showerror("Error", "No file selected for transformation.")
+        # Show relevant options based on the selected operation
+        if selected_operation in self.transformation_options:
+            for widget in self.transformation_options[selected_operation]:
+                widget.pack(anchor='w', pady=2)
+
+    def update_fps_slider(self, event):
+        try:
+            value = int(self.fps_entry.get())
+            value = max(1, min(60, value))
+            self.fps_slider.set(value)
+        except ValueError:
+            pass
+
+    def update_width_slider(self, event):
+        try:
+            value = int(self.width_entry.get())
+            value = max(128, min(1920, value))
+            value = self.snap_to_eight(value)
+            self.width_slider.set(value)
+            self.width_entry.delete(0, 'end')
+            self.width_entry.insert(0, str(value))
+        except ValueError:
+            pass
+
+    def update_height_slider(self, event):
+        try:
+            value = int(self.height_entry.get())
+            value = max(128, min(1080, value))
+            value = self.snap_to_eight(value)
+            self.height_slider.set(value)
+            self.height_entry.delete(0, 'end')
+            self.height_entry.insert(0, str(value))
+        except ValueError:
+            pass
+
+    def update_quality_slider(self, event):
+        try:
+            value = int(self.quality_entry.get())
+            value = max(1, min(100, value))
+            self.quality_slider.set(value)
+        except ValueError:
+            pass
+
+    def on_width_change(self, val):
+        val = int(float(val))
+        snapped_val = self.snap_to_eight(val)
+        if snapped_val != val:
+            self.width_slider.set(snapped_val)
+        self.width_entry.delete(0, 'end')
+        self.width_entry.insert(0, str(snapped_val))
+
+    def on_height_change(self, val):
+        val = int(float(val))
+        snapped_val = self.snap_to_eight(val)
+        if snapped_val != val:
+            self.height_slider.set(snapped_val)
+        self.height_entry.delete(0, 'end')
+        self.height_entry.insert(0, str(snapped_val))
+
+    def snap_to_eight(self, value):
+        return value - (value % 8)
+
+    def select_input(self):
+        operation = self.operation_var.get()
+        if operation in ["Video to GIF", "GIF to Video", "GIF to Images"]:
+            filetypes = [
+                ("Video Files", "*.mp4;*.avi;*.mov;*.mkv"),
+                ("GIF Files", "*.gif")
+            ]
+            path = filedialog.askopenfilename(title="Select Input File", filetypes=filetypes)
+        elif operation == "Images to GIF":
+            path = filedialog.askdirectory(title="Select Input Directory with Images")
+        else:
+            path = None
+
+        if path:
+            self.input_path_var.set(path)
+            # Optionally, read video properties if applicable
+            if operation in ["Video to GIF", "GIF to Video"]:
+                self.read_media_properties(path)
+
+    def select_output(self):
+        operation = self.operation_var.get()
+        if operation in ["Video to GIF", "GIF to Video", "Images to GIF"]:
+            if operation == "Images to GIF":
+                output_file = filedialog.asksaveasfilename(
+                    defaultextension=".gif",
+                    filetypes=[("GIF Files", "*.gif")],
+                    title="Save GIF As"
+                )
+            elif operation == "GIF to Video":
+                output_file = filedialog.asksaveasfilename(
+                    defaultextension=".mp4",
+                    filetypes=[("MP4 Files", "*.mp4")],
+                    title="Save Video As"
+                )
+            else:
+                output_file = filedialog.asksaveasfilename(
+                    defaultextension=".gif",
+                    filetypes=[("GIF Files", "*.gif")],
+                    title="Save GIF As"
+                )
+        elif operation == "GIF to Images":
+            output_file = filedialog.askdirectory(title="Select Output Directory for Frames")
+        else:
+            output_file = None
+
+        if output_file:
+            self.output_path_var.set(output_file)
+
+    def read_media_properties(self, file_path):
+        # Use ffprobe to get width, height, and fps
+        cmd = [
+            os.path.join(os.path.dirname(FFMPEG_PATH), "ffprobe.exe"),
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,r_frame_rate",
+            "-of", "json",
+            file_path
+        ]
+        try:
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True)
+            info = json.loads(result.stdout)
+            stream = info['streams'][0]
+            width = stream.get('width', 512)
+            height = stream.get('height', 512)
+            fps_str = stream.get('r_frame_rate', '10/1')
+            fps = eval(fps_str) if '/' in fps_str else float(fps_str)
+            self.width_slider.set(self.snap_to_eight(width))
+            self.width_entry.delete(0, 'end')
+            self.width_entry.insert(0, str(self.snap_to_eight(width)))
+
+            self.height_slider.set(self.snap_to_eight(height))
+            self.height_entry.delete(0, 'end')
+            self.height_entry.insert(0, str(self.snap_to_eight(height)))
+
+            self.fps_slider.set(int(fps))
+            self.fps_entry.delete(0, 'end')
+            self.fps_entry.insert(0, str(int(fps)))
+
+        except Exception as e:
+            logger.error(f"Failed to read media properties: {e}")
+            messagebox.showerror("Error", f"Failed to read media properties: {e}")
+
+    def start_conversion(self):
+        operation = self.operation_var.get()
+        input_path = self.input_path_var.get()
+        output_path = self.output_path_var.get()
+
+        if not input_path or not output_path:
+            messagebox.showerror("Error", "Please select both input and output paths.")
             return
 
-        output_file = filedialog.asksaveasfilename(
-            defaultextension=".mp4",
-            filetypes=[("MP4 Files", "*.mp4"), ("GIF Files", "*.gif")],
-            title="Save Transformed File As"
-        )
-        if not output_file:
-            return
-
+        fps = self.fps_slider.get()
         width = self.width_slider.get()
         height = self.height_slider.get()
+        quality = self.quality_slider.get()
+        image_type = self.image_type_var.get()
 
-        # Determine if the output is GIF or Video based on the extension
-        ext = os.path.splitext(output_file)[1].lower()
-        if ext == ".gif":
-            output_format = "gif"
-        else:
-            output_format = "mp4"
+        sort_images = self.sort_var.get() if operation == "Images to GIF" else False
 
-        scale_filter = f"scale={width}:{height}:flags=lanczos"
+        cmd = []
+        message = ""
+        # how to use quality in the command
 
-        if output_format == "gif":
+
+        if operation == "Video to GIF":
             cmd = [
                 FFMPEG_PATH,
-                '-i', self.transform_file_path,
-                '-vf', scale_filter,
+                '-i', input_path,
+                '-vf', f'fps={fps},scale={width}:{height}:flags=lanczos',
+                '-gifflags', '+transdiff',
                 '-y',
-                output_file
+                output_path
             ]
-        else:
+            message = "Converting Video to GIF..."
+        elif operation == "GIF to Video":
             cmd = [
                 FFMPEG_PATH,
-                '-i', self.transform_file_path,
-                '-vf', scale_filter,
+                '-f', 'gif',
+                '-i', input_path,
                 '-movflags', 'faststart',
                 '-pix_fmt', 'yuv420p',
+                '-vf', f'scale={width}:{height}',
                 '-y',
-                output_file
+                output_path
             ]
-
-        threading.Thread(target=self.run_ffmpeg_command, args=(cmd, "Applying Transformation...")).start()
-
-    def change_aspect_ratio(self, value):
-        if value == "Free":
-            self.width_slider.config(state="normal")
-            self.height_slider.config(state="normal")
-            self.width_slider.config(command=None)
-            self.height_slider.config(command=None)
-        elif value == "Square (W=L)":
-            self.height_slider.set(self.width_slider.get())
-            self.height_slider.config(state="disabled")
-            self.width_slider.config(command=self.update_square)
-        elif value == "16:9":
-            calculated_height = int(self.width_slider.get() * 9 / 16)
-            self.height_slider.set(calculated_height)
-            self.height_slider.config(state="disabled")
-            self.width_slider.config(command=self.update_16_9)
-        elif value == "4:3":
-            calculated_height = int(self.width_slider.get() * 3 / 4)
-            self.height_slider.set(calculated_height)
-            self.height_slider.config(state="disabled")
-            self.width_slider.config(command=self.update_4_3)
-
-    def update_square(self, val):
-        try:
-            val = int(val)
-            self.height_slider.set(val)
-        except ValueError:
-            pass
-
-    def update_16_9(self, val):
-        try:
-            val = int(val)
-            calculated_height = int(val * 9 / 16)
-            self.height_slider.set(calculated_height)
-        except ValueError:
-            pass
-
-    def update_4_3(self, val):
-        try:
-            val = int(val)
-            calculated_height = int(val * 3 / 4)
-            self.height_slider.set(calculated_height)
-        except ValueError:
-            pass
-
-    def display_frame(self, file_path, first=True):
-        # Check file size or duration
-        file_size = os.path.getsize(file_path)
-        if file_size > 50 * 1024 * 1024:  # 50 MB limit for example
-            logger.info("File too large for frame display.")
-            self.display_placeholder()
-            return
-
-        ext = os.path.splitext(file_path)[1].lower()
-        temp_frame = os.path.join(config["output_path"], "temp_frame.png")
-
-        try:
-            if ext == ".gif":
-                with Image.open(file_path) as img:
-                    frame = img.convert('RGBA')
-                    frame.save(temp_frame)
-            else:
-                # Use FFmpeg to extract frame
+            message = "Converting GIF to Video..."
+        elif operation == "Images to GIF":
+            # Gather images
+            supported_ext = ('.png', '.jpg', '.jpeg', '.webp', '.bmp')
+            images = sorted([
+                os.path.join(input_path, img) for img in os.listdir(input_path)
+                if img.lower().endswith(supported_ext)
+            ])
+            if sort_images:
+                images.sort(key=lambda x: int(''.join(filter(str.isdigit, os.path.basename(x))) or 0))
+            temp_txt = os.path.join(config["output_path"], "images_to_gif.txt")
+            try:
+                with open(temp_txt, 'w') as f:
+                    for img in images:
+                        f.write(f"file '{img}'\n")
+                        f.write(f"duration {1/fps}\n")
                 cmd = [
                     FFMPEG_PATH,
-                    "-i", file_path,
-                    "-vf", "select=eq(n\,0)",
-                    "-q:v", "3",
-                    temp_frame
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', temp_txt,
+                    '-vf', f'scale={width}:{height}:flags=lanczos',
+                    '-y',
+                    output_path
                 ]
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                message = "Creating GIF from Images..."
+            except Exception as e:
+                logger.error(f"Failed to prepare image list: {e}")
+                messagebox.showerror("Error", f"Failed to prepare image list: {e}")
+                return
+        elif operation == "GIF to Images":
+            cmd = [
+                FFMPEG_PATH,
+                '-i', input_path,
+                '-vf', f'fps={fps}',
+                os.path.join(output_path, f"frame_%04d.{image_type}")
+            ]
+            message = "Extracting Frames from GIF..."
+        else:
+            messagebox.showerror("Error", "Unsupported operation selected.")
+            return
 
-            # Open the frame image
-            with Image.open(temp_frame) as img:
-                img.thumbnail((400, 400))
-                self.photo = ImageTk.PhotoImage(img)
-                self.frame_canvas.config(image=self.photo)
-
-            # Remove the temp frame
-            os.remove(temp_frame)
-
-        except subprocess.CalledProcessError as e:
-            logger.error(f"FFmpeg failed: {e}")
-            messagebox.showerror("Error", "Failed to extract frame from video.")
-            self.display_placeholder()
-        except Exception as e:
-            logger.error(f"Error displaying frame: {e}")
-            messagebox.showerror("Error", f"An error occurred: {e}")
-            self.display_placeholder()
+        threading.Thread(target=self.run_ffmpeg_command, args=(cmd, message)).start()
 
     def run_ffmpeg_command(self, cmd, message):
         try:
@@ -456,7 +495,10 @@ class FFmpegApp:
             logger.info(f"{message} Completed successfully.")
         except subprocess.CalledProcessError as e:
             logger.error(f"{message} Failed: {e.stderr.decode()}")
-            messagebox.showerror("Error", f"{message} Failed.")
+            messagebox.showerror("Error", f"{message} Failed.\n{e.stderr.decode()}")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         finally:
             if hasattr(self, 'progress_window') and self.progress_window.winfo_exists():
                 self.progress_window.destroy()
@@ -464,13 +506,17 @@ class FFmpegApp:
     def show_progress(self, message):
         self.progress_window = Toplevel(self.master)
         self.progress_window.title("Processing")
-        self.progress_window.geometry("300x100")
-        Label(self.progress_window, text=message).pack(pady=20)
+        self.progress_window.geometry("400x100")
+        self.progress_window.configure(bg="#2e2e2e")
+        Label(self.progress_window, text=message, fg="#ffffff", bg="#2e2e2e", font=("Helvetica", 12)).pack(pady=10)
         self.progress_bar = ttk.Progressbar(self.progress_window, mode='indeterminate')
         self.progress_bar.pack(pady=10, padx=20, fill='x')
         self.progress_bar.start()
 
-if __name__ == "__main__":
+def main():
     root = Tk()
     app = FFmpegApp(root)
     root.mainloop()
+
+if __name__ == "__main__":
+    main()
