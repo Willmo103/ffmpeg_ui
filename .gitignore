@@ -4,3 +4,5 @@ bin/*
 *venv*
 *vscode*
 *ieda*
+dist
+build
