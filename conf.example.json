@@ -28,5 +28,7 @@
     "output_path": "",
     "log_file": "ffmpeg_app.log",
     "mp4_dir": "",
-    "gif_dir": ""
+    "gif_dir": "",
+    "max_width": 1920,
+    "max_height": 1032
 }
