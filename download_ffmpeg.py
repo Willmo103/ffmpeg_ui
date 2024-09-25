@@ -6,7 +6,9 @@ from shutil import move, rmtree
 
 ROOT_DIR = abspath(dirname(__file__))
 FFMPEG_DOWNLOAD_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-EXTRACT_DIR = join(ROOT_DIR, "ffmpeg_download")  # Temporary directory to extract the zip file
+EXTRACT_DIR = join(
+    ROOT_DIR, "ffmpeg_download"
+)  # Temporary directory to extract the zip file
 FFMPEG_DIR = join(ROOT_DIR, "bin")  # This is where we'll place the binaries
 
 for directory in (EXTRACT_DIR, FFMPEG_DIR):

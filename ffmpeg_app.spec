@@ -13,7 +13,7 @@ a = Analysis(
         (os.path.join('bin', 'ffplay.exe'), 'bin')
     ],
     datas=[
-        ('conf.json', '.')
+        ('conf.example.json', '.')
     ],
     hiddenimports=[],
     hookspath=[],

@@ -4,6 +4,7 @@ import subprocess
 import sys
 import os
 
+
 def install_dependencies():
     try:
         import pip
@@ -11,9 +12,10 @@ def install_dependencies():
         print("pip is not installed. Please install pip first.")
         sys.exit(1)
 
-    required = ['Pillow']
+    required = ["Pillow"]
     for package in required:
         subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
 
 def download_ffmpeg():
     # Check if FFmpeg is already downloaded
@@ -23,10 +25,12 @@ def download_ffmpeg():
     else:
         print("FFmpeg is already installed.")
 
+
 def main():
     install_dependencies()
     download_ffmpeg()
     print("Installation complete.")
+
 
 if __name__ == "__main__":
     main()
