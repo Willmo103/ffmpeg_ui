@@ -33,8 +33,11 @@ CONFIG_PATH = "conf.json"
 
 def load_config():
     if not os.path.exists(CONFIG_PATH):
-        # Move conf.example.json to conf.json
-        shutil.move("conf.example.json", "conf.json")
+        # Move conf.example.json to conf.example.json
+        shutil.copy("conf.example.json", "conf.json")
+        # Load the copied file
+        with open("conf.json") as j:
+            return json.load(j)
     else:
         with open(CONFIG_PATH, "r") as f:
             return json.load(f)
