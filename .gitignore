@@ -6,3 +6,8 @@ bin/*
 *ieda*
 dist
 build
+*.md
+!README.md
+!LICENSE
+*.json
+!*example.json
