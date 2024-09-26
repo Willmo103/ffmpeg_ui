@@ -25,10 +25,10 @@
         }
     },
     "logger_name": "ffmpeg_app",
-    "output_path": "C:/Users/wmorris/Videos/FFout",
+    "output_path": "",
     "log_file": "ffmpeg_app.log",
-    "mp4_dir": "C:/Users/wmorris/Videos/FFout/mp4",
-    "gif_dir": "C:/Users/wmorris/Videos/FFout/gif",
+    "mp4_dir": "",
+    "gif_dir": "",
     "max_width": 1920,
     "max_height": 1032
 }
