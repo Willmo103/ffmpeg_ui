@@ -624,6 +624,7 @@ class FFmpegApp:
 
             if path:
                 self.input_path_var.set(path)
+                self.update_ui_for_input()
                 # Optionally, read media properties if applicable
                 if operation in [
                     "Video to GIF",
@@ -690,6 +691,16 @@ class FFmpegApp:
         except Exception as e:
             logger.error(f"Error selecting output: {e}")
             messagebox.showerror("Error", f"Failed to select output: {e}")
+
+
+    def update_ui_for_input(self):
+        input_path = self.input_path_var.get()
+        if input_path and os.path.exists(input_path):
+            if os.path.isfile(input_path):
+                self.read_media_properties(input_path)
+            elif os.path.isdir(input_path):
+                # Handle directory input (for Images to GIF/Video)
+                pass
 
     def read_media_properties(self, file_path):
         # Use ffprobe to get width, height, and fps
