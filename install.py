@@ -6,20 +6,28 @@ import os
 
 
 def install_dependencies():
+    """
+    Install dependencies using pip
+    """
     try:
-        import pip
+        import pip  # noqa
     except ImportError:
         print("pip is not installed. Please install pip first.")
         sys.exit(1)
 
     required = ["Pillow"]
     for package in required:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", package])
 
 
 def download_ffmpeg():
+    """
+    Download FFmpeg binaries
+    """
     # Check if FFmpeg is already downloaded
-    ffmpeg_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "bin")
+    ffmpeg_dir = os.path.join(os.path.abspath(
+        os.path.dirname(__file__)), "bin")
     if not os.path.exists(ffmpeg_dir):
         subprocess.check_call([sys.executable, "setup_ffmpeg.py"])
     else:
@@ -27,6 +35,9 @@ def download_ffmpeg():
 
 
 def main():
+    """
+    Main function
+    """
     install_dependencies()
     download_ffmpeg()
     print("Installation complete.")

@@ -6,24 +6,22 @@ import shutil
 import subprocess
 import logging
 import logging.config
-from pathlib import Path
 from tkinter import (
     filedialog,
     messagebox,
     StringVar, IntVar,
 )
-from PIL import Image, ImageTk
 import threading
 import sys
 import platform
-import webbrowser
 
 # Install ttkbootstrap if not already installed
 try:
     import ttkbootstrap as tb
     from ttkbootstrap.constants import *
 except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "ttkbootstrap"])
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "ttkbootstrap"])
     import ttkbootstrap as tb
     from ttkbootstrap.constants import *
 
@@ -32,6 +30,7 @@ CONFIG_PATH = "conf.json"
 
 
 def load_config():
+    """Load configuration from conf.json"""
     if not os.path.exists(CONFIG_PATH):
         # Move conf.example.json to conf.json if it exists
         if os.path.exists("conf.example.json"):
@@ -114,6 +113,7 @@ logger = logging.getLogger(config.get("logger_name", "FFmpegApp"))
 
 # Ensure output directories
 def ensure_directories():
+    """Ensure output directories exist"""
     output_path = config.get("output_path")
     if not output_path:
         root = tb.Window()
@@ -131,7 +131,8 @@ def ensure_directories():
                     os.makedirs(directory)
                 except PermissionError as e:
                     messagebox.showerror(
-                        "Permission Error", f"Cannot create directory: {directory}\n{e}"
+                        "Permission Error", f"Cannot create directory: {
+                            directory}\n{e}"
                     )
                     exit(1)
         # Save config
@@ -146,7 +147,8 @@ def ensure_directories():
                     if os.path.exists(directory):
                         pass
                     messagebox.showerror(
-                        "Permission Error", f"Cannot create directory: {directory}\n{e}"
+                        "Permission Error", f"Cannot create directory: {
+                            directory}\n{e}"
                     )
                     exit(1)
 
@@ -155,9 +157,11 @@ ensure_directories()
 
 # FFmpeg Path
 FFMPEG_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "bin")
-FFMPEG_PATH = os.path.join(FFMPEG_DIR, "ffmpeg.exe") if platform.system() == "Windows" else "ffmpeg"
+FFMPEG_PATH = os.path.join(
+    FFMPEG_DIR, "ffmpeg.exe") if platform.system() == "Windows" else "ffmpeg"
 
-FFPROBE_PATH = os.path.join(os.path.dirname(FFMPEG_PATH), "ffprobe.exe") if platform.system() == "Windows" else "ffprobe"
+FFPROBE_PATH = os.path.join(os.path.dirname(
+    FFMPEG_PATH), "ffprobe.exe") if platform.system() == "Windows" else "ffprobe"
 
 if not os.path.exists(FFMPEG_PATH):
     messagebox.showerror(
@@ -168,6 +172,8 @@ if not os.path.exists(FFMPEG_PATH):
 
 # Main Application Class
 class FFmpegApp:
+    """Main Application Class"""
+
     def __init__(self, master):
         self.master = master
         master.title("FFmpeg Application")
@@ -201,6 +207,7 @@ class FFmpegApp:
         self.init_main_controls()
 
     def init_main_controls(self):
+        """Initialize main controls"""
         # Operation Selection
         operation_frame = tb.Frame(self.main_frame)
         operation_frame.pack(fill="x", pady=10)
@@ -344,7 +351,8 @@ class FFmpegApp:
         self.transformation_options["Images to GIF"] = [self.sort_check]
         # Set default state
         # self.sort_check.pack(anchor="w")
-        self.sort_check.pack_forget()  # Initially hide; will show if operation is Images to GIF
+        # Initially hide; will show if operation is Images to GIF
+        self.sort_check.pack_forget()
 
         # Conversion Buttons
         button_frame = tb.Frame(self.main_frame)
@@ -369,7 +377,8 @@ class FFmpegApp:
         selected_frame = tb.Frame(self.main_frame)
         selected_frame.pack(fill="x", pady=10)
 
-        tb.Label(selected_frame, text="Input:").grid(row=0, column=0, sticky="w")
+        tb.Label(selected_frame, text="Input:").grid(
+            row=0, column=0, sticky="w")
         self.input_path_var = StringVar()
         self.input_entry = tb.Entry(
             selected_frame,
@@ -378,7 +387,8 @@ class FFmpegApp:
         )
         self.input_entry.grid(row=0, column=1, padx=5, pady=2)
 
-        tb.Label(selected_frame, text="Output:").grid(row=1, column=0, sticky="w")
+        tb.Label(selected_frame, text="Output:").grid(
+            row=1, column=0, sticky="w")
         self.output_path_var = StringVar()
         self.output_entry = tb.Entry(
             selected_frame,
@@ -388,6 +398,7 @@ class FFmpegApp:
         self.output_entry.grid(row=1, column=1, padx=5, pady=2)
 
     def toggle_theme(self):
+        """Toggle between dark and light themes"""
         try:
             if self.style.theme.name == "darkly":
                 self.style.theme_use("litera")  # Light theme
@@ -396,10 +407,11 @@ class FFmpegApp:
                 self.style.theme_use("darkly")  # Dark theme
                 self.theme_toggle.config(text="Light Mode")
         except Exception as e:
-            logger.error(f"Error toggling theme: {e}")
+            logger.error("Error toggling theme: %s", e)
             messagebox.showerror("Error", f"Failed to toggle theme: {e}")
 
     def toggle_ratio_lock(self):
+        """Toggle aspect ratio lock"""
         try:
             if self.ratio_lock_var.get():
                 # Calculate and store the current ratio
@@ -410,10 +422,12 @@ class FFmpegApp:
             else:
                 self.original_ratio = 1.0  # Reset ratio
         except Exception as e:
-            logger.error(f"Error toggling aspect ratio lock: {e}")
-            messagebox.showerror("Error", f"Failed to toggle aspect ratio lock: {e}")
+            logger.error("Error toggling aspect ratio lock: %s", e)
+            messagebox.showerror(
+                "Error", f"Failed to toggle aspect ratio lock: {e}")
 
     def update_options(self, selected_operation):
+        """Update options based on selected operation"""
         try:
             # Hide all transformation-specific options
             for widgets in self.transformation_options.values():
@@ -434,10 +448,11 @@ class FFmpegApp:
             else:
                 self.sort_check.pack_forget()
         except Exception as e:
-            logger.error(f"Error updating options: {e}")
+            logger.error("Error updating options: %s", e)
             messagebox.showerror("Error", f"Failed to update options: {e}")
 
-    def update_fps_slider(self, event):
+    def update_fps_slider(self, _):
+        """Update FPS slider based on entry value"""
         try:
             value = int(self.fps_entry.get())
             value = max(1, min(60, value))
@@ -446,7 +461,7 @@ class FFmpegApp:
             logger.warning("Invalid FPS value entered.")
             pass
         except Exception as e:
-            logger.error(f"Error updating FPS slider: {e}")
+            logger.error("Error updating FPS slider: %s", e)
             messagebox.showerror("Error", f"Failed to update FPS slider: {e}")
 
     def on_fps_slider_change(self, val):
@@ -454,9 +469,10 @@ class FFmpegApp:
             self.fps_entry.delete(0, "end")
             self.fps_entry.insert(0, str(int(float(val))))
         except Exception as e:
-            logger.error(f"Error in on_fps_slider_change: {e}")
+            logger.error("Error in on_fps_slider_change: %s", e)
 
-    def update_width_slider(self, event):
+    def update_width_slider(self, _):
+        """Update width slider based on entry value"""
         try:
             value = int(self.width_entry.get())
             value = max(128, min(config.get("max_width", 1920), value))
@@ -475,10 +491,12 @@ class FFmpegApp:
             logger.warning("Invalid width value entered.")
             pass
         except Exception as e:
-            logger.error(f"Error updating width slider: {e}")
-            messagebox.showerror("Error", f"Failed to update width slider: {e}")
+            logger.error("Error updating width slider: %s", e)
+            messagebox.showerror(
+                "Error", f"Failed to update width slider: {e}")
 
-    def update_height_slider(self, event):
+    def update_height_slider(self, _):
+        """Update height slider based on entry value"""
         try:
             value = int(self.height_entry.get())
             value = max(128, min(config.get("max_height", 1032), value))
@@ -497,10 +515,12 @@ class FFmpegApp:
             logger.warning("Invalid height value entered.")
             pass
         except Exception as e:
-            logger.error(f"Error updating height slider: {e}")
-            messagebox.showerror("Error", f"Failed to update height slider: {e}")
+            logger.error("Error updating height slider: %s", e)
+            messagebox.showerror(
+                "Error", f"Failed to update height slider: {e}")
 
-    def update_quality_slider(self, event):
+    def update_quality_slider(self, _):
+        """Update quality slider based on entry value"""
         try:
             value = int(self.quality_entry.get())
             value = max(1, min(100, value))
@@ -509,10 +529,12 @@ class FFmpegApp:
             logger.warning("Invalid quality value entered.")
             pass
         except Exception as e:
-            logger.error(f"Error updating quality slider: {e}")
-            messagebox.showerror("Error", f"Failed to update quality slider: {e}")
+            logger.error("Error updating quality slider: %s", e)
+            messagebox.showerror(
+                "Error", f"Failed to update quality slider: {e}")
 
     def on_width_change(self, val):
+        """Update width entry based on slider value"""
         try:
             val = int(float(val))
             snapped_val = self.snap_to_eight(val)
@@ -527,9 +549,10 @@ class FFmpegApp:
             self.width_entry.delete(0, "end")
             self.width_entry.insert(0, str(snapped_val))
         except Exception as e:
-            logger.error(f"Error in on_width_change: {e}")
+            logger.error("Error in on_width_change: %s", e)
 
     def on_height_change(self, val):
+        """Update height entry based on slider value"""
         try:
             val = int(float(val))
             snapped_val = self.snap_to_eight(val)
@@ -544,12 +567,14 @@ class FFmpegApp:
             self.height_entry.delete(0, "end")
             self.height_entry.insert(0, str(snapped_val))
         except Exception as e:
-            logger.error(f"Error in on_height_change: {e}")
+            logger.error("Error in on_height_change: %s", e)
 
     def snap_to_eight(self, value):
+        """Snap value to nearest multiple of 8"""
         return value - (value % 8)
 
     def select_input(self):
+        """Select input file or directory based on operation"""
         try:
             operation = self.operation_var.get()
             if operation in ["Video to GIF", "GIF to Video", "GIF to Images", "Video to Images", "Images to Video"]:
@@ -561,7 +586,8 @@ class FFmpegApp:
                     title="Select Input File", filetypes=filetypes
                 )
             elif operation == "Images to GIF":
-                path = filedialog.askdirectory(title="Select Input Directory with Images")
+                path = filedialog.askdirectory(
+                    title="Select Input Directory with Images")
             else:
                 path = None
 
@@ -572,10 +598,11 @@ class FFmpegApp:
                 if operation in ["Video to GIF", "GIF to Video", "Video to Images", "Images to Video"]:
                     self.read_media_properties(path)
         except Exception as e:
-            logger.error(f"Error selecting input: {e}")
+            logger.error("Error selecting input: %s", e)
             messagebox.showerror("Error", f"Failed to select input: {e}")
 
     def select_output(self):
+        """Select output file or directory based on operation"""
         try:
             operation = self.operation_var.get()
             if operation in ["Video to GIF", "GIF to Video", "Images to GIF", "Video to Images", "Images to Video"]:
@@ -591,7 +618,8 @@ class FFmpegApp:
                         # Typically produces .mp4 or similar
                         output_file = filedialog.asksaveasfilename(
                             defaultextension=".mp4",
-                            filetypes=[("MP4 Files", "*.mp4"), ("AVI Files", "*.avi")],
+                            filetypes=[("MP4 Files", "*.mp4"),
+                                       ("AVI Files", "*.avi")],
                             title="Save Video As",
                         )
                     else:
@@ -617,11 +645,11 @@ class FFmpegApp:
             if output_file:
                 self.output_path_var.set(output_file)
         except Exception as e:
-            logger.error(f"Error selecting output: {e}")
+            logger.error("Error selecting output: %s", e)
             messagebox.showerror("Error", f"Failed to select output: {e}")
 
-
     def update_ui_for_input(self):
+        """Update UI based on selected input"""
         input_path = self.input_path_var.get()
         if input_path and os.path.exists(input_path):
             if os.path.isfile(input_path):
@@ -631,6 +659,7 @@ class FFmpegApp:
                 pass
 
     def read_media_properties(self, file_path):
+        """Read media properties using ffprobe"""
         # Use ffprobe to get width, height, and fps
         cmd = [
             FFPROBE_PATH,
@@ -675,17 +704,20 @@ class FFmpegApp:
             if self.ratio_lock_var.get():
                 self.toggle_ratio_lock()
         except Exception as e:
-            logger.error(f"Failed to read media properties: {e}")
-            messagebox.showerror("Error", f"Failed to read media properties: {e}")
+            logger.error("Failed to read media properties: %s", e)
+            messagebox.showerror(
+                "Error", f"Failed to read media properties: {e}")
 
     def start_conversion(self):
+        """Start the conversion process using FFmpeg"""
         try:
             operation = self.operation_var.get()
             input_path = self.input_path_var.get()
             output_path = self.output_path_var.get()
 
             if not input_path or not output_path:
-                messagebox.showerror("Error", "Please select both input and output paths.")
+                messagebox.showerror(
+                    "Error", "Please select both input and output paths.")
                 return
 
             fps = self.fps_slider.get()
@@ -751,12 +783,15 @@ class FFmpegApp:
                     try:
                         images.sort(
                             key=lambda x: int(
-                                "".join(filter(str.isdigit, os.path.basename(x))) or 0
+                                "".join(
+                                    filter(str.isdigit, os.path.basename(x))) or 0
                             )
                         )
                     except ValueError:
-                        messagebox.showwarning("Warning", "Some images do not have frame numbers. Sorting may be incorrect.")
-                temp_txt = os.path.join(config["output_path"], "images_to_gif.txt")
+                        messagebox.showwarning(
+                            "Warning", "Some images do not have frame numbers. Sorting may be incorrect.")
+                temp_txt = os.path.join(
+                    config["output_path"], "images_to_gif.txt")
                 try:
                     with open(temp_txt, "w") as f:
                         for img in images:
@@ -777,8 +812,9 @@ class FFmpegApp:
                     ]
                     message = "Creating GIF from Images..."
                 except Exception as e:
-                    logger.error(f"Failed to prepare image list: {e}")
-                    messagebox.showerror("Error", f"Failed to prepare image list: {e}")
+                    logger.error("Failed to prepare image list: %s", e)
+                    messagebox.showerror(
+                        "Error", f"Failed to prepare image list: {e}")
                     return
             elif operation == "GIF to Images":
                 cmd = [
@@ -814,12 +850,15 @@ class FFmpegApp:
                     try:
                         images.sort(
                             key=lambda x: int(
-                                "".join(filter(str.isdigit, os.path.basename(x))) or 0
+                                "".join(
+                                    filter(str.isdigit, os.path.basename(x))) or 0
                             )
                         )
                     except ValueError:
-                        messagebox.showwarning("Warning", "Some images do not have frame numbers. Sorting may be incorrect.")
-                temp_txt = os.path.join(config["output_path"], "images_to_video.txt")
+                        messagebox.showwarning(
+                            "Warning", "Some images do not have frame numbers. Sorting may be incorrect.")
+                temp_txt = os.path.join(
+                    config["output_path"], "images_to_video.txt")
                 try:
                     with open(temp_txt, "w") as f:
                         for img in images:
@@ -846,38 +885,44 @@ class FFmpegApp:
                     ]
                     message = "Creating Video from Images..."
                 except Exception as e:
-                    logger.error(f"Failed to prepare image list: {e}")
-                    messagebox.showerror("Error", f"Failed to prepare image list: {e}")
+                    logger.error("Failed to prepare image list: %s", e)
+                    messagebox.showerror(
+                        "Error", f"Failed to prepare image list: {e}")
                     return
             else:
-                messagebox.showerror("Error", "Unsupported operation selected.")
+                messagebox.showerror(
+                    "Error", "Unsupported operation selected.")
                 return
 
-            threading.Thread(target=self.run_ffmpeg_command, args=(cmd, message)).start()
+            logger.info("Running FFmpeg command: %s", ' '.join(cmd))
+            threading.Thread(target=self.run_ffmpeg_command,
+                             args=(cmd, message)).start()
         except:
             pass
 
     def run_ffmpeg_command(self, cmd, message):
         try:
             self.show_progress(message)
-            logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
             subprocess.run(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
             )
-            messagebox.showinfo("Success", f"{message} Completed successfully.")
-            logger.info(f"{message} Completed successfully.")
+            messagebox.showinfo(
+                "Success", f"{message} Completed successfully.")
+            logger.info("%s Completed successfully.", message)
             self.open_output_directory()
         except subprocess.CalledProcessError as e:
-            logger.error(f"{message} Failed: {e.stderr.decode()}")
-            messagebox.showerror("Error", f"{message} Failed.\n{e.stderr.decode()}")
+            logger.error("%s Failed: %s", message, e.stderr.decode())
+            messagebox.showerror("Error", f"{message} Failed.\n{
+                                 e.stderr.decode()}")
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.error("Unexpected error: %s", e)
             messagebox.showerror("Error", f"An unexpected error occurred: {e}")
         finally:
             if hasattr(self, "progress_window") and self.progress_window.winfo_exists():
                 self.progress_window.destroy()
 
     def show_progress(self, message):
+        """Show a progress window with a message and progress bar"""
         try:
             self.progress_window = tb.Toplevel(self.master)
             self.progress_window.title("Processing")
@@ -896,10 +941,12 @@ class FFmpegApp:
             self.progress_bar.pack(pady=10, padx=20, fill="x")
             self.progress_bar.start()
         except Exception as e:
-            logger.error(f"Error showing progress window: {e}")
-            messagebox.showerror("Error", f"Failed to show progress window: {e}")
+            logger.error("Error showing progress window: %s", e)
+            messagebox.showerror(
+                "Error", f"Failed to show progress window: {e}")
 
     def open_output_directory(self):
+        """Open the output directory in the file explorer"""
         try:
             output_path = self.output_path_var.get()
             if os.path.isdir(output_path):
@@ -913,10 +960,12 @@ class FFmpegApp:
                 directory = os.path.dirname(output_path)
                 self.open_specific_directory(directory)
         except Exception as e:
-            logger.error(f"Error opening output directory: {e}")
-            messagebox.showerror("Error", f"Failed to open output directory: {e}")
+            logger.error("Error opening output directory: %s", e)
+            messagebox.showerror(
+                "Error", f"Failed to open output directory: {e}")
 
     def open_specific_directory(self, directory):
+        """Open a specific directory in the file explorer"""
         try:
             if platform.system() == "Windows":
                 os.startfile(directory)
@@ -925,18 +974,20 @@ class FFmpegApp:
             else:  # Linux and others
                 subprocess.Popen(["xdg-open", directory])
         except Exception as e:
-            logger.error(f"Error opening specific directory: {e}")
+            logger.error("Error opening specific directory: %s", e)
             messagebox.showerror("Error", f"Failed to open directory: {e}")
 
 
 def main():
+    """Main function to run the application"""
     try:
         root = tb.Window()
         app = FFmpegApp(root)
         root.mainloop()
     except Exception as e:
-        logger.critical(f"Unhandled exception: {e}")
-        messagebox.showerror("Critical Error", f"An unhandled exception occurred: {e}")
+        logger.critical("Unhandled exception: %s", e)
+        messagebox.showerror(
+            "Critical Error", f"An unhandled exception occurred: {e}")
 
 
 if __name__ == "__main__":
