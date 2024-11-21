@@ -1,9 +1,8 @@
 *.log
-bin/*
 *dev*
 *venv*
 *vscode*
-*ieda*
+*idea*
 dist
 build
 *.md
@@ -11,3 +10,5 @@ build
 !LICENSE
 *.json
 !*example.json
+!*/*.gitignore
+*cache*
